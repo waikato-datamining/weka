@@ -1,0 +1,8 @@
+*.DS_Store
+*~
+*.bak
+*.swp
+*.iml
+target/
+build/
+.idea/
