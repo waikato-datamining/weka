@@ -6,4 +6,5 @@
 target/
 build/
 dist/
+doc/
 .idea/
