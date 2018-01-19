@@ -342,7 +342,7 @@ public class StepTree extends JTree {
     DefaultMutableTreeNode targetFolder = null;
 
     @SuppressWarnings("unchecked")
-    Enumeration<Object> children = jtreeRoot.children();
+    Enumeration children = jtreeRoot.children();
     while (children.hasMoreElements()) {
       Object child = children.nextElement();
       if (child instanceof DefaultMutableTreeNode) {
