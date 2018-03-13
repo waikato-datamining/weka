@@ -21,6 +21,12 @@
 
 package weka.core.converters;
 
+import weka.core.Instance;
+import weka.core.Instances;
+import weka.core.RevisionHandler;
+import weka.core.RevisionUtils;
+import weka.core.WekaPackageClassLoaderManager;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,27 +34,17 @@ import java.io.OutputStream;
 import java.io.Serializable;
 import java.io.StreamTokenizer;
 import java.net.URL;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.Hashtable;
-import java.util.Properties;
 import java.util.Vector;
-
-import weka.core.ClassDiscovery;
-import weka.core.Instance;
-import weka.core.Instances;
-import weka.core.RevisionHandler;
-import weka.core.RevisionUtils;
-import weka.gui.GenericObjectEditor;
-import weka.gui.GenericPropertiesCreator;
 
 /**
  * Utility routines for the converter package.
  * 
  * @author Mark Hall (mhall@cs.waikato.ac.nz)
  * @author FracPete (fracpete at waikato dot ac dot nz)
- * @version $Revision: 10203 $
+ * @version $Revision: 14285 $
  * @see Serializable
  */
 public class ConverterUtils implements Serializable, RevisionHandler {
@@ -68,7 +64,7 @@ public class ConverterUtils implements Serializable, RevisionHandler {
    * and already loaded datasets.
    * 
    * @author FracPete (fracpete at waikato dot ac dot nz)
-   * @version $Revision: 10203 $
+   * @version $Revision: 14285 $
    * @see #hasMoreElements(Instances)
    * @see #nextElement(Instances)
    * @see #reset()
@@ -516,7 +512,7 @@ public class ConverterUtils implements Serializable, RevisionHandler {
      */
     @Override
     public String getRevision() {
-      return RevisionUtils.extract("$Revision: 10203 $");
+      return RevisionUtils.extract("$Revision: 14285 $");
     }
   }
 
@@ -526,7 +522,7 @@ public class ConverterUtils implements Serializable, RevisionHandler {
    * counterpart to <code>DataSource</code>.
    * 
    * @author FracPete (fracpete at waikato dot ac dot nz)
-   * @version $Revision: 10203 $
+   * @version $Revision: 14285 $
    * @see DataSource
    */
   public static class DataSink implements Serializable, RevisionHandler {
@@ -670,49 +666,9 @@ public class ConverterUtils implements Serializable, RevisionHandler {
      */
     @Override
     public String getRevision() {
-      return RevisionUtils.extract("$Revision: 10203 $");
+      return RevisionUtils.extract("$Revision: 14285 $");
     }
   }
-
-  /**
-   * the core loaders - hardcoded list necessary for RMI/Remote Experiments
-   * (comma-separated list).
-   */
-  public final static String CORE_FILE_LOADERS = weka.core.converters.ArffLoader.class
-    .getName()
-    + ","
-    // + weka.core.converters.C45Loader.class.getName() + ","
-    + weka.core.converters.CSVLoader.class.getName()
-    + ","
-    + weka.core.converters.DatabaseConverter.class.getName()
-    + ","
-    // + weka.core.converters.LibSVMLoader.class.getName() + ","
-    // + weka.core.converters.MatlabLoader.class.getName() + ","
-    // + weka.core.converters.SVMLightLoader.class.getName() + ","
-    + weka.core.converters.SerializedInstancesLoader.class.getName()
-    + ","
-    + weka.core.converters.TextDirectoryLoader.class.getName()
-    + ","
-    + weka.core.converters.XRFFLoader.class.getName();
-
-  /**
-   * the core savers - hardcoded list necessary for RMI/Remote Experiments
-   * (comma-separated list).
-   */
-  public final static String CORE_FILE_SAVERS = weka.core.converters.ArffSaver.class
-    .getName()
-    + ","
-    // + weka.core.converters.C45Saver.class.getName() + ","
-    + weka.core.converters.CSVSaver.class.getName()
-    + ","
-    + weka.core.converters.DatabaseConverter.class.getName()
-    + ","
-    // + weka.core.converters.LibSVMSaver.class.getName() + ","
-    // + weka.core.converters.MatlabSaver.class.getName() + ","
-    // + weka.core.converters.SVMLightSaver.class.getName() + ","
-    + weka.core.converters.SerializedInstancesSaver.class.getName()
-    + ","
-    + weka.core.converters.XRFFSaver.class.getName();
 
   /** all available loaders (extension &lt;-&gt; classname). */
   protected static Hashtable<String, String> m_FileLoaders;
@@ -729,165 +685,11 @@ public class ConverterUtils implements Serializable, RevisionHandler {
   }
 
   public static void initialize() {
-    Vector<String> classnames;
+    ConverterResources.initialize();
 
-    try {
-      // init
-      m_FileLoaders = new Hashtable<String, String>();
-      m_URLFileLoaders = new Hashtable<String, String>();
-      m_FileSavers = new Hashtable<String, String>();
-
-      // generate properties
-      // Note: does NOT work with RMI, hence m_FileLoadersCore/m_FileSaversCore
-
-      Properties props = GenericPropertiesCreator.getGlobalOutputProperties();
-      if (props == null) {
-        GenericPropertiesCreator creator = new GenericPropertiesCreator();
-
-        creator.execute(false);
-        props = creator.getOutputProperties();
-      }
-
-      // loaders
-      m_FileLoaders = getFileConverters(
-        props.getProperty(Loader.class.getName(), CORE_FILE_LOADERS),
-        new String[] { FileSourcedConverter.class.getName() });
-
-      // URL loaders
-      m_URLFileLoaders = getFileConverters(
-        props.getProperty(Loader.class.getName(), CORE_FILE_LOADERS),
-        new String[] { FileSourcedConverter.class.getName(),
-          URLSourcedLoader.class.getName() });
-
-      // savers
-      m_FileSavers = getFileConverters(
-        props.getProperty(Saver.class.getName(), CORE_FILE_SAVERS),
-        new String[] { FileSourcedConverter.class.getName() });
-    } catch (Exception e) {
-      e.printStackTrace();
-      // ignore
-    } finally {
-      // loaders
-      if (m_FileLoaders.size() == 0) {
-        classnames = GenericObjectEditor.getClassnames(AbstractFileLoader.class
-          .getName());
-        if (classnames.size() > 0) {
-          m_FileLoaders = getFileConverters(classnames,
-            new String[] { FileSourcedConverter.class.getName() });
-        } else {
-          m_FileLoaders = getFileConverters(CORE_FILE_LOADERS,
-            new String[] { FileSourcedConverter.class.getName() });
-        }
-      }
-
-      // URL loaders
-      if (m_URLFileLoaders.size() == 0) {
-        classnames = GenericObjectEditor.getClassnames(AbstractFileLoader.class
-          .getName());
-        if (classnames.size() > 0) {
-          m_URLFileLoaders = getFileConverters(classnames,
-            new String[] { FileSourcedConverter.class.getName(),
-              URLSourcedLoader.class.getName() });
-        } else {
-          m_URLFileLoaders = getFileConverters(CORE_FILE_LOADERS,
-            new String[] { FileSourcedConverter.class.getName(),
-              URLSourcedLoader.class.getName() });
-        }
-      }
-
-      // savers
-      if (m_FileSavers.size() == 0) {
-        classnames = GenericObjectEditor.getClassnames(AbstractFileSaver.class
-          .getName());
-        if (classnames.size() > 0) {
-          m_FileSavers = getFileConverters(classnames,
-            new String[] { FileSourcedConverter.class.getName() });
-        } else {
-          m_FileSavers = getFileConverters(CORE_FILE_SAVERS,
-            new String[] { FileSourcedConverter.class.getName() });
-        }
-      }
-    }
-
-    weka.gui.ConverterFileChooser.initDefaultFilters();
-  }
-
-  /**
-   * returns a hashtable with the association
-   * "file extension &lt;-&gt; converter classname" for the comma-separated list
-   * of converter classnames.
-   * 
-   * @param classnames comma-separated list of converter classnames
-   * @param intf interfaces the converters have to implement
-   * @return hashtable with ExtensionFileFilters
-   */
-  protected static Hashtable<String, String> getFileConverters(
-    String classnames, String[] intf) {
-    Vector<String> list;
-    String[] names;
-    int i;
-
-    list = new Vector<String>();
-    names = classnames.split(",");
-    for (i = 0; i < names.length; i++) {
-      list.add(names[i]);
-    }
-
-    return getFileConverters(list, intf);
-  }
-
-  /**
-   * returns a hashtable with the association
-   * "file extension &lt;-&gt; converter classname" for the list of converter
-   * classnames.
-   * 
-   * @param classnames list of converter classnames
-   * @param intf interfaces the converters have to implement
-   * @return hashtable with ExtensionFileFilters
-   */
-  protected static Hashtable<String, String> getFileConverters(
-    Vector<String> classnames, String[] intf) {
-    Hashtable<String, String> result;
-    String classname;
-    Class<?> cls;
-    String[] ext;
-    FileSourcedConverter converter;
-    int i;
-    int n;
-
-    result = new Hashtable<String, String>();
-
-    for (i = 0; i < classnames.size(); i++) {
-      classname = classnames.get(i);
-
-      // all necessary interfaces implemented?
-      for (n = 0; n < intf.length; n++) {
-        if (!ClassDiscovery.hasInterface(intf[n], classname)) {
-          continue;
-        }
-      }
-
-      // get data from converter
-      try {
-        cls = Class.forName(classname);
-        converter = (FileSourcedConverter) cls.newInstance();
-        ext = converter.getFileExtensions();
-      } catch (Exception e) {
-        cls = null;
-        converter = null;
-        ext = new String[0];
-      }
-
-      if (converter == null) {
-        continue;
-      }
-
-      for (n = 0; n < ext.length; n++) {
-        result.put(ext[n], classname);
-      }
-    }
-
-    return result;
+    m_FileLoaders    = ConverterResources.getFileLoaders();
+    m_URLFileLoaders = ConverterResources.getURLFileLoaders();
+    m_FileSavers     = ConverterResources.getFileSavers();
   }
 
   /**
@@ -1001,29 +803,12 @@ public class ConverterUtils implements Serializable, RevisionHandler {
     classname = ht.get(extension);
     if (classname != null) {
       try {
-        result = Class.forName(classname).newInstance();
+        result = WekaPackageClassLoaderManager.forName(classname).newInstance();
       } catch (Exception e) {
         result = null;
         e.printStackTrace();
       }
     }
-
-    return result;
-  }
-
-  /**
-   * checks whether the given class is one of the hardcoded core file loaders.
-   * 
-   * @param classname the class to check
-   * @return true if the class is one of the core loaders
-   * @see #CORE_FILE_LOADERS
-   */
-  public static boolean isCoreFileLoader(String classname) {
-    boolean result;
-    String[] classnames;
-
-    classnames = CORE_FILE_LOADERS.split(",");
-    result = (Arrays.binarySearch(classnames, classname) >= 0);
 
     return result;
   }
@@ -1115,23 +900,6 @@ public class ConverterUtils implements Serializable, RevisionHandler {
   }
 
   /**
-   * checks whether the given class is one of the hardcoded core file savers.
-   * 
-   * @param classname the class to check
-   * @return true if the class is one of the core savers
-   * @see #CORE_FILE_SAVERS
-   */
-  public static boolean isCoreFileSaver(String classname) {
-    boolean result;
-    String[] classnames;
-
-    classnames = CORE_FILE_SAVERS.split(",");
-    result = (Arrays.binarySearch(classnames, classname) >= 0);
-
-    return result;
-  }
-
-  /**
    * returns a vector with the classnames of all the file savers.
    * 
    * @return the classnames of the savers
@@ -1180,6 +948,6 @@ public class ConverterUtils implements Serializable, RevisionHandler {
    */
   @Override
   public String getRevision() {
-    return RevisionUtils.extract("$Revision: 10203 $");
+    return RevisionUtils.extract("$Revision: 14285 $");
   }
 }

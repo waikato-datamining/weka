@@ -44,11 +44,14 @@ import weka.core.Environment;
 import weka.core.Instance;
 import weka.core.Instances;
 import weka.core.OptionHandler;
+import weka.core.PluginManager;
 import weka.core.Range;
+import weka.core.SerializationHelper;
 import weka.core.SerializedObject;
 import weka.core.Settings;
 import weka.core.Utils;
 import weka.core.Version;
+import weka.core.WekaPackageClassLoaderManager;
 import weka.core.converters.ArffLoader;
 import weka.core.converters.ConverterUtils.DataSource;
 import weka.core.converters.IncrementalConverter;
@@ -87,27 +90,7 @@ import weka.gui.visualize.plugins.GraphVisualizePlugin;
 import weka.gui.visualize.plugins.TreeVisualizePlugin;
 import weka.gui.visualize.plugins.VisualizePlugin;
 
-import javax.swing.BorderFactory;
-import javax.swing.ButtonGroup;
-import javax.swing.DefaultComboBoxModel;
-import javax.swing.JButton;
-import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
-import javax.swing.JDialog;
-import javax.swing.JFileChooser;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JMenu;
-import javax.swing.JMenuItem;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-import javax.swing.JRadioButton;
-import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
-import javax.swing.JTextField;
-import javax.swing.JViewport;
-import javax.swing.SwingConstants;
+import javax.swing.*;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.filechooser.FileFilter;
@@ -140,7 +123,6 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Random;
-import java.util.Vector;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -155,7 +137,7 @@ import java.util.zip.GZIPOutputStream;
  * @author Len Trigg (trigg@cs.waikato.ac.nz)
  * @author Mark Hall (mhall@cs.waikato.ac.nz)
  * @author Richard Kirkby (rkirkby@cs.waikato.ac.nz)
- * @version $Revision: 12720 $
+ * @version $Revision: 14518 $
  */
 @PerspectiveInfo(ID = "weka.gui.explorer.classifierpanel", title = "Classify",
   toolTipText = "Classify instances",
@@ -223,6 +205,9 @@ public class ClassifierPanel extends AbstractPerspective implements
 
   /** Check to output the model built from the training data. */
   protected JCheckBox m_OutputModelBut = new JCheckBox("Output model");
+
+  /** Check to output the models built from the training splits. */
+  protected JCheckBox m_OutputModelsForTrainingSplitsBut = new JCheckBox("Output models for training splits");
 
   /** Check to output true/false positives, precision/recall for each class. */
   protected JCheckBox m_OutputPerClassBut = new JCheckBox(
@@ -428,6 +413,8 @@ public class ClassifierPanel extends AbstractPerspective implements
         + "prediction margin (affects classification only)");
     m_OutputModelBut
       .setToolTipText("Output the model obtained from the full training set");
+    m_OutputModelsForTrainingSplitsBut
+            .setToolTipText("Output the models obtained from the training splits");
     m_OutputPerClassBut.setToolTipText("Output precision/recall & true/false"
       + " positives for each class");
     m_OutputConfusionBut
@@ -455,6 +442,7 @@ public class ClassifierPanel extends AbstractPerspective implements
     m_StorePredictionsBut.setSelected(ExplorerDefaults
       .getClassifierStorePredictionsForVis());
     m_OutputModelBut.setSelected(ExplorerDefaults.getClassifierOutputModel());
+    m_OutputModelsForTrainingSplitsBut.setSelected(ExplorerDefaults.getClassifierOutputModelsForTrainingSplits());
     m_OutputPerClassBut.setSelected(ExplorerDefaults
       .getClassifierOutputPerClassStats());
     m_OutputConfusionBut.setSelected(ExplorerDefaults
@@ -521,16 +509,12 @@ public class ClassifierPanel extends AbstractPerspective implements
       public void actionPerformed(ActionEvent e) {
         m_SetCostsBut.setEnabled(false);
         if (m_SetCostsFrame == null) {
-          if (PropertyDialog.getParentDialog(ClassifierPanel.this) != null) {
+          if (PropertyDialog.getParentDialog(m_SetCostsBut) != null) {
             m_SetCostsFrame =
-              new PropertyDialog(PropertyDialog
-                .getParentDialog(ClassifierPanel.this), m_CostMatrixEditor,
-                100, 100);
+              new PropertyDialog(PropertyDialog.getParentDialog(m_SetCostsBut), m_CostMatrixEditor, -1, -1);
           } else {
             m_SetCostsFrame =
-              new PropertyDialog(PropertyDialog
-                .getParentFrame(ClassifierPanel.this), m_CostMatrixEditor, 100,
-                100);
+              new PropertyDialog(PropertyDialog.getParentFrame(m_SetCostsBut), m_CostMatrixEditor, -1, -1);
           }
           m_SetCostsFrame.setTitle("Cost Matrix Editor");
           // pd.setSize(250,150);
@@ -544,7 +528,6 @@ public class ClassifierPanel extends AbstractPerspective implements
               }
             }
           });
-          m_SetCostsFrame.setVisible(true);
         }
 
         // do we need to change the size of the matrix?
@@ -555,6 +538,11 @@ public class ClassifierPanel extends AbstractPerspective implements
           m_CostMatrixEditor.setValue(new CostMatrix(numClasses));
         }
 
+        if (PropertyDialog.getParentDialog(m_SetCostsBut) != null) {
+          m_SetCostsFrame.setLocationRelativeTo(PropertyDialog.getParentDialog(m_SetCostsBut));
+        } else {
+          m_SetCostsFrame.setLocationRelativeTo(PropertyDialog.getParentFrame(m_SetCostsBut));
+        }
         m_SetCostsFrame.setVisible(true);
       }
     });
@@ -602,8 +590,10 @@ public class ClassifierPanel extends AbstractPerspective implements
           || e.isAltDown()) {
           int index = m_History.getList().locationToIndex(e.getPoint());
           if (index != -1) {
-            String name = m_History.getNameAtIndex(index);
-            visualize(name, e.getX(), e.getY());
+            List<String> selectedEls =
+              (List<String>) m_History.getList().getSelectedValuesList();
+            // String name = m_History.getNameAtIndex(index);
+            visualize(selectedEls, e.getX(), e.getY());
           } else {
             visualize(null, e.getX(), e.getY());
           }
@@ -619,6 +609,7 @@ public class ClassifierPanel extends AbstractPerspective implements
         moreOptionsPanel.setBorder(BorderFactory.createEmptyBorder(0, 5, 5, 5));
         moreOptionsPanel.setLayout(new GridLayout(0, 1));
         moreOptionsPanel.add(m_OutputModelBut);
+        moreOptionsPanel.add(m_OutputModelsForTrainingSplitsBut);
         moreOptionsPanel.add(m_OutputPerClassBut);
         moreOptionsPanel.add(m_OutputEntropyBut);
         moreOptionsPanel.add(m_OutputConfusionBut);
@@ -816,17 +807,18 @@ public class ClassifierPanel extends AbstractPerspective implements
     p2.add(m_MoreOptions);
 
     // Any launcher plugins?
-    Vector<String> pluginsVector =
-      GenericObjectEditor
-        .getClassnames(ClassifierPanelLaunchHandlerPlugin.class.getName());
+    List<String> pluginsVector =
+      PluginManager.getPluginNamesOfTypeList(ClassifierPanelLaunchHandlerPlugin.class.getName());
     JButton pluginBut = null;
     if (pluginsVector.size() == 1) {
       try {
         // Display as a single button
-        String className = pluginsVector.elementAt(0);
+        String className = pluginsVector.get(0);
         final ClassifierPanelLaunchHandlerPlugin plugin =
-          (ClassifierPanelLaunchHandlerPlugin) Class.forName(className)
-            .newInstance();
+          (ClassifierPanelLaunchHandlerPlugin) WekaPackageClassLoaderManager
+            .objectForName(className);
+        // (ClassifierPanelLaunchHandlerPlugin) Class.forName(className)
+        // .newInstance();
         if (plugin != null) {
           plugin.setClassifierPanel(this);
           pluginBut = new JButton(plugin.getLaunchCommand());
@@ -846,11 +838,13 @@ public class ClassifierPanel extends AbstractPerspective implements
       final java.awt.PopupMenu pluginPopup = new java.awt.PopupMenu();
 
       for (int i = 0; i < pluginsVector.size(); i++) {
-        String className = (pluginsVector.elementAt(i));
+        String className = (pluginsVector.get(i));
         try {
           final ClassifierPanelLaunchHandlerPlugin plugin =
-            (ClassifierPanelLaunchHandlerPlugin) Class.forName(className)
-              .newInstance();
+            (ClassifierPanelLaunchHandlerPlugin) WekaPackageClassLoaderManager
+              .objectForName(className);
+          // (ClassifierPanelLaunchHandlerPlugin) Class.forName(className)
+          // .newInstance();
 
           if (plugin == null) {
             continue;
@@ -983,7 +977,7 @@ public class ClassifierPanel extends AbstractPerspective implements
 
   /**
    * Sets the Logger to receive informational messages.
-   * 
+   *
    * @param newLog the Logger that will now get info messages
    */
   @Override
@@ -994,7 +988,7 @@ public class ClassifierPanel extends AbstractPerspective implements
 
   /**
    * Tells the panel to use a new set of instances.
-   * 
+   *
    * @param inst a set of Instances
    */
   @Override
@@ -1024,10 +1018,19 @@ public class ClassifierPanel extends AbstractPerspective implements
   }
 
   /**
+   * Get the current set of instances
+   *
+   * @return the current set of instances
+   */
+  public Instances getInstances() {
+    return m_Instances;
+  }
+
+  /**
    * Sets the user test set. Information about the current test set is displayed
    * in an InstanceSummaryPanel and the user is given the ability to load
    * another set from a file or url.
-   * 
+   *
    */
   protected void setTestSet() {
 
@@ -1066,18 +1069,20 @@ public class ClassifierPanel extends AbstractPerspective implements
       });
       // Add propertychangelistener to update m_TestLoader whenever
       // it changes in the settestframe
-      m_SetTestFrame = new JFrame("Test Instances");
+      m_SetTestFrame = Utils.getWekaJFrame("Test Instances", this);
       sp.setParentFrame(m_SetTestFrame); // enable Close-Button
       m_SetTestFrame.getContentPane().setLayout(new BorderLayout());
       m_SetTestFrame.getContentPane().add(sp, BorderLayout.CENTER);
       m_SetTestFrame.pack();
+      m_SetTestFrame.setSize(400,200);
     }
+    m_SetTestFrame.setLocationRelativeTo(SwingUtilities.getWindowAncestor(this));
     m_SetTestFrame.setVisible(true);
   }
 
   /**
    * outputs the header for the predictions on the data.
-   * 
+   *
    * @param outBuff the buffer to add the output to
    * @param classificationOutput for generating the classification output
    * @param title the title to print
@@ -1090,7 +1095,23 @@ public class ClassifierPanel extends AbstractPerspective implements
     classificationOutput.printHeader();
   }
 
-  protected static Evaluation setupEval(Evaluation eval, Classifier classifier,
+  /**
+   * Configures an evaluation object with respect to a classifier, cost matrix,
+   * output and plotting.
+   *
+   * @param eval the Evaluation object to configure
+   * @param classifier the Classifier being used
+   * @param inst the Instances involved
+   * @param costMatrix a cost matrix (if any)
+   * @param plotInstances a ClassifierErrorsPlotInstances for visualization of
+   *          errors (can be null)
+   * @param classificationOutput an output object for printing predictions (can
+   *          be null)
+   * @param onlySetPriors true to only set priors
+   * @return the configured Evaluation object
+   * @throws Exception if a problem occurs
+   */
+  public static Evaluation setupEval(Evaluation eval, Classifier classifier,
     Instances inst, CostMatrix costMatrix,
     ClassifierErrorsPlotInstances plotInstances,
     AbstractOutput classificationOutput, boolean onlySetPriors)
@@ -1202,11 +1223,14 @@ public class ClassifierPanel extends AbstractPerspective implements
 
           try {
             if (m_TestLoader != null && m_TestLoader.getStructure() != null) {
-              if (m_ClassifierEditor.getValue() instanceof BatchPredictor
+              /* if (m_ClassifierEditor.getValue() instanceof BatchPredictor
                 && ((BatchPredictor) m_ClassifierEditor.getValue())
                   .implementsMoreEfficientBatchPrediction()
                 && m_TestLoader instanceof ArffLoader) {
                 // we're not really streaming test instances in this case...
+                ((ArffLoader) m_TestLoader).setRetainStringVals(true);
+              } */
+              if (m_TestLoader instanceof ArffLoader && m_StorePredictionsBut.isSelected()) {
                 ((ArffLoader) m_TestLoader).setRetainStringVals(true);
               }
               m_TestLoader.reset();
@@ -1222,6 +1246,7 @@ public class ClassifierPanel extends AbstractPerspective implements
               new CostMatrix((CostMatrix) m_CostMatrixEditor.getValue());
           }
           boolean outputModel = m_OutputModelBut.isSelected();
+          boolean outputModelsForTrainingSplits = m_OutputModelsForTrainingSplitsBut.isSelected();
           boolean outputConfusion = m_OutputConfusionBut.isSelected();
           boolean outputPerClass = m_OutputPerClassBut.isSelected();
           boolean outputSummary = true;
@@ -1361,7 +1386,7 @@ public class ClassifierPanel extends AbstractPerspective implements
             // set up the structure of the plottable instances for
             // visualization
             plotInstances = ExplorerDefaults.getClassifierErrorsPlotInstances();
-            plotInstances.setInstances(inst);
+            plotInstances.setInstances(testMode == 4 ? userTestStructure : inst);
             plotInstances.setClassifier(classifier);
             plotInstances.setClassIndex(inst.classIndex());
             plotInstances.setSaveForVisualization(saveVis);
@@ -1571,6 +1596,10 @@ public class ClassifierPanel extends AbstractPerspective implements
                     + ex.getMessage());
                 }
                 current.buildClassifier(train);
+                if (outputModelsForTrainingSplits) {
+                  outBuff.append("\n=== Classifier model for fold " + (fold + 1) + " ===\n\n");
+                  outBuff.append(current.toString() + "\n");
+                }
                 Instances test = inst.testCV(numFolds, fold);
                 m_Log.statusMessage("Evaluating model for fold " + (fold + 1)
                   + "...");
@@ -1641,6 +1670,10 @@ public class ClassifierPanel extends AbstractPerspective implements
                   + ex.getMessage());
               }
               current.buildClassifier(train);
+              if (outputModelsForTrainingSplits) {
+                outBuff.append("\n=== Classifier model for training split (" + trainSize + " instances) ===\n\n");
+                outBuff.append(current.toString() + "\n");
+              }
               eval = new Evaluation(train, costMatrix);
 
               // make adjustments if the classifier is an InputMappedClassifier
@@ -1706,6 +1739,7 @@ public class ClassifierPanel extends AbstractPerspective implements
               eval =
                 setupEval(eval, classifier, inst, costMatrix, plotInstances,
                   classificationOutput, false);
+              plotInstances.setInstances(userTestStructure);
               eval.setMetricsToDisplay(m_selectedEvalMetrics);
 
               // plotInstances.setEvaluation(eval);
@@ -1823,7 +1857,7 @@ public class ClassifierPanel extends AbstractPerspective implements
             if (testMode != 1) {
               String mode = "";
               if (testMode == 2) {
-                mode = "training split";
+                mode = "test split";
               } else if (testMode == 3) {
                 mode = "training data";
               } else if (testMode == 4) {
@@ -1882,7 +1916,8 @@ public class ClassifierPanel extends AbstractPerspective implements
                 && plotInstances.canPlot(false)) {
                 m_CurrentVis = new VisualizePanel();
                 if (getMainApplication() != null) {
-                  Settings settings = getMainApplication().getApplicationSettings();
+                  Settings settings =
+                    getMainApplication().getApplicationSettings();
                   m_CurrentVis.applySettings(settings,
                     weka.gui.explorer.VisualizePanel.ScatterDefaults.ID);
                 }
@@ -1939,23 +1974,23 @@ public class ClassifierPanel extends AbstractPerspective implements
 
   /**
    * Handles constructing a popup menu with visualization options.
-   * 
-   * @param name the name of the result history list entry clicked on by the
+   *
+   * @param names the name of the result history list entry clicked on by the
    *          user
    * @param x the x coordinate for popping up the menu
    * @param y the y coordinate for popping up the menu
    */
   @SuppressWarnings("unchecked")
-  protected void visualize(String name, int x, int y) {
-    final String selectedName = name;
+  protected void visualize(List<String> names, int x, int y) {
+    final List<String> selectedNames = names;
     JPopupMenu resultListMenu = new JPopupMenu();
 
     JMenuItem visMainBuffer = new JMenuItem("View in main window");
-    if (selectedName != null) {
+    if (selectedNames != null && selectedNames.size() == 1) {
       visMainBuffer.addActionListener(new ActionListener() {
         @Override
         public void actionPerformed(ActionEvent e) {
-          m_History.setSingle(selectedName);
+          m_History.setSingle(selectedNames.get(0));
         }
       });
     } else {
@@ -1964,11 +1999,11 @@ public class ClassifierPanel extends AbstractPerspective implements
     resultListMenu.add(visMainBuffer);
 
     JMenuItem visSepBuffer = new JMenuItem("View in separate window");
-    if (selectedName != null) {
+    if (selectedNames != null && selectedNames.size() == 1) {
       visSepBuffer.addActionListener(new ActionListener() {
         @Override
         public void actionPerformed(ActionEvent e) {
-          m_History.openFrame(selectedName);
+          m_History.openFrame(selectedNames.get(0));
         }
       });
     } else {
@@ -1977,11 +2012,11 @@ public class ClassifierPanel extends AbstractPerspective implements
     resultListMenu.add(visSepBuffer);
 
     JMenuItem saveOutput = new JMenuItem("Save result buffer");
-    if (selectedName != null) {
+    if (selectedNames != null && selectedNames.size() == 1) {
       saveOutput.addActionListener(new ActionListener() {
         @Override
         public void actionPerformed(ActionEvent e) {
-          saveBuffer(selectedName);
+          saveBuffer(selectedNames.get(0));
         }
       });
     } else {
@@ -1989,12 +2024,12 @@ public class ClassifierPanel extends AbstractPerspective implements
     }
     resultListMenu.add(saveOutput);
 
-    JMenuItem deleteOutput = new JMenuItem("Delete result buffer");
-    if (selectedName != null) {
+    JMenuItem deleteOutput = new JMenuItem("Delete result buffer(s)");
+    if (selectedNames != null) {
       deleteOutput.addActionListener(new ActionListener() {
         @Override
         public void actionPerformed(ActionEvent e) {
-          m_History.removeResult(selectedName);
+          m_History.removeResults(selectedNames);
         }
       });
     } else {
@@ -2014,8 +2049,8 @@ public class ClassifierPanel extends AbstractPerspective implements
     resultListMenu.add(loadModel);
 
     ArrayList<Object> o = null;
-    if (selectedName != null) {
-      o = (ArrayList<Object>) m_History.getNamedObject(selectedName);
+    if (selectedNames != null && selectedNames.size() == 1) {
+      o = (ArrayList<Object>) m_History.getNamedObject(selectedNames.get(0));
     }
 
     VisualizePanel temp_vp = null;
@@ -2052,11 +2087,12 @@ public class ClassifierPanel extends AbstractPerspective implements
     final Instances trainHeader = temp_trainHeader;
 
     JMenuItem saveModel = new JMenuItem("Save model");
-    if (classifier != null) {
+    if (classifier != null && selectedNames != null
+      && selectedNames.size() == 1) {
       saveModel.addActionListener(new ActionListener() {
         @Override
         public void actionPerformed(ActionEvent e) {
-          saveClassifier(selectedName, classifier, trainHeader);
+          saveClassifier(selectedNames.get(0), classifier, trainHeader);
         }
       });
     } else {
@@ -2066,11 +2102,12 @@ public class ClassifierPanel extends AbstractPerspective implements
 
     JMenuItem reEvaluate =
       new JMenuItem("Re-evaluate model on current test set");
-    if (classifier != null && m_TestLoader != null) {
+    if (classifier != null && m_TestLoader != null && selectedNames != null
+      && selectedNames.size() == 1) {
       reEvaluate.addActionListener(new ActionListener() {
         @Override
         public void actionPerformed(ActionEvent e) {
-          reevaluateModel(selectedName, classifier, trainHeader);
+          reevaluateModel(selectedNames.get(0), classifier, trainHeader);
         }
       });
     } else {
@@ -2080,7 +2117,8 @@ public class ClassifierPanel extends AbstractPerspective implements
 
     JMenuItem reApplyConfig =
       new JMenuItem("Re-apply this model's configuration");
-    if (classifier != null) {
+    if (classifier != null && selectedNames != null
+      && selectedNames.size() == 1) {
       reApplyConfig.addActionListener(new ActionListener() {
         @Override
         public void actionPerformed(ActionEvent e) {
@@ -2125,7 +2163,7 @@ public class ClassifierPanel extends AbstractPerspective implements
             if (vp != null) {
               title = vp.getName();
             } else {
-              title = selectedName;
+              title = selectedNames.get(0);
             }
             visualizeTree(grph, title);
           }
@@ -2138,7 +2176,7 @@ public class ClassifierPanel extends AbstractPerspective implements
             Thread th = new Thread() {
               @Override
               public void run() {
-                visualizeBayesNet(grph, selectedName);
+                visualizeBayesNet(grph, selectedNames.get(0));
               }
             };
             th.start();
@@ -2302,7 +2340,8 @@ public class ClassifierPanel extends AbstractPerspective implements
               Instances result = cc.getCurve(preds, classValue);
               VisualizePanel vmc = new VisualizePanel();
               if (getMainApplication() != null) {
-                Settings settings = getMainApplication().getApplicationSettings();
+                Settings settings =
+                  getMainApplication().getApplicationSettings();
                 m_CurrentVis.applySettings(settings,
                   weka.gui.explorer.VisualizePanel.ScatterDefaults.ID);
               }
@@ -2337,13 +2376,15 @@ public class ClassifierPanel extends AbstractPerspective implements
     boolean availablePlugins = false;
 
     // predictions
-    Vector<String> pluginsVector =
-      GenericObjectEditor.getClassnames(VisualizePlugin.class.getName());
+    List<String> pluginsVector =
+      PluginManager.getPluginNamesOfTypeList(VisualizePlugin.class.getName());
     for (int i = 0; i < pluginsVector.size(); i++) {
-      String className = (pluginsVector.elementAt(i));
+      String className = (pluginsVector.get(i));
       try {
         VisualizePlugin plugin =
-          (VisualizePlugin) Class.forName(className).newInstance();
+          (VisualizePlugin) WekaPackageClassLoaderManager
+            .objectForName(className);
+        // (VisualizePlugin) Class.forName(className).newInstance();
         if (plugin == null) {
           continue;
         }
@@ -2367,12 +2408,14 @@ public class ClassifierPanel extends AbstractPerspective implements
 
     // errros
     pluginsVector =
-      GenericObjectEditor.getClassnames(ErrorVisualizePlugin.class.getName());
+      PluginManager.getPluginNamesOfTypeList(ErrorVisualizePlugin.class.getName());
     for (int i = 0; i < pluginsVector.size(); i++) {
-      String className = (pluginsVector.elementAt(i));
+      String className = (pluginsVector.get(i));
       try {
         ErrorVisualizePlugin plugin =
-          (ErrorVisualizePlugin) Class.forName(className).newInstance();
+          (ErrorVisualizePlugin) WekaPackageClassLoaderManager
+            .objectForName(className);
+        // (ErrorVisualizePlugin) Class.forName(className).newInstance();
         if (plugin == null) {
           continue;
         }
@@ -2400,19 +2443,20 @@ public class ClassifierPanel extends AbstractPerspective implements
       // trees
       if (((Drawable) temp_classifier).graphType() == Drawable.TREE) {
         pluginsVector =
-          GenericObjectEditor
-            .getClassnames(TreeVisualizePlugin.class.getName());
+          PluginManager.getPluginNamesOfTypeList(TreeVisualizePlugin.class.getName());
         for (int i = 0; i < pluginsVector.size(); i++) {
-          String className = (pluginsVector.elementAt(i));
+          String className = (pluginsVector.get(i));
           try {
             TreeVisualizePlugin plugin =
-              (TreeVisualizePlugin) Class.forName(className).newInstance();
+              (TreeVisualizePlugin) WekaPackageClassLoaderManager
+                .objectForName(className);
+            // (TreeVisualizePlugin) Class.forName(className).newInstance();
             if (plugin == null) {
               continue;
             }
             availablePlugins = true;
             JMenuItem pluginMenuItem =
-              plugin.getVisualizeMenuItem(grph, selectedName);
+              plugin.getVisualizeMenuItem(grph, selectedNames.get(0));
             new Version();
             if (pluginMenuItem != null) {
               /*
@@ -2433,19 +2477,20 @@ public class ClassifierPanel extends AbstractPerspective implements
       // graphs
       else {
         pluginsVector =
-          GenericObjectEditor.getClassnames(GraphVisualizePlugin.class
-            .getName());
+          PluginManager.getPluginNamesOfTypeList(GraphVisualizePlugin.class.getName());
         for (int i = 0; i < pluginsVector.size(); i++) {
-          String className = (pluginsVector.elementAt(i));
+          String className = (pluginsVector.get(i));
           try {
             GraphVisualizePlugin plugin =
-              (GraphVisualizePlugin) Class.forName(className).newInstance();
+              (GraphVisualizePlugin) WekaPackageClassLoaderManager
+                .objectForName(className);
+            // (GraphVisualizePlugin) Class.forName(className).newInstance();
             if (plugin == null) {
               continue;
             }
             availablePlugins = true;
             JMenuItem pluginMenuItem =
-              plugin.getVisualizeMenuItem(grph, selectedName);
+              plugin.getVisualizeMenuItem(grph, selectedNames.get(0));
             new Version();
             if (pluginMenuItem != null) {
               /*
@@ -2475,13 +2520,13 @@ public class ClassifierPanel extends AbstractPerspective implements
   /**
    * Pops up a TreeVisualizer for the classifier from the currently selected
    * item in the results list.
-   * 
+   *
    * @param dottyString the description of the tree in dotty format
    * @param treeName the title to assign to the display
    */
   protected void visualizeTree(String dottyString, String treeName) {
     final javax.swing.JFrame jf =
-      new javax.swing.JFrame("Weka Classifier Tree Visualizer: " + treeName);
+            Utils.getWekaJFrame("Weka Classifier Tree Visualizer: " + treeName, this);
     jf.setSize(500, 400);
     jf.getContentPane().setLayout(new BorderLayout());
     TreeVisualizer tv = new TreeVisualizer(null, dottyString, new PlaceNode2());
@@ -2492,7 +2537,9 @@ public class ClassifierPanel extends AbstractPerspective implements
         jf.dispose();
       }
     });
-
+    jf.pack();
+    jf.setSize(800, 600);
+    jf.setLocationRelativeTo(SwingUtilities.getWindowAncestor(this));
     jf.setVisible(true);
     tv.fitToScreen();
   }
@@ -2500,13 +2547,13 @@ public class ClassifierPanel extends AbstractPerspective implements
   /**
    * Pops up a GraphVisualizer for the BayesNet classifier from the currently
    * selected item in the results list.
-   * 
+   *
    * @param XMLBIF the description of the graph in XMLBIF ver. 0.3
    * @param graphName the name of the graph
    */
   protected void visualizeBayesNet(String XMLBIF, String graphName) {
     final javax.swing.JFrame jf =
-      new javax.swing.JFrame("Weka Classifier Graph Visualizer: " + graphName);
+      Utils.getWekaJFrame("Weka Classifier Graph Visualizer: " + graphName, this);
     jf.setSize(500, 400);
     jf.getContentPane().setLayout(new BorderLayout());
     GraphVisualizer gv = new GraphVisualizer();
@@ -2526,12 +2573,16 @@ public class ClassifierPanel extends AbstractPerspective implements
       }
     });
 
+    jf.pack();
+    jf.setSize(800, 600);
+    jf.setLocationRelativeTo(SwingUtilities.getWindowAncestor(this));
+
     jf.setVisible(true);
   }
 
   /**
    * Pops up the Cost/Benefit analysis panel.
-   * 
+   *
    * @param cb the CostBenefitAnalysis panel to pop up
    */
   protected void visualizeCostBenefitAnalysis(CostBenefitAnalysis cb,
@@ -2541,8 +2592,7 @@ public class ClassifierPanel extends AbstractPerspective implements
       if (classifierAndRelationName != null) {
         windowTitle += "- " + classifierAndRelationName;
       }
-      final javax.swing.JFrame jf = new javax.swing.JFrame(windowTitle);
-      jf.setSize(1000, 600);
+      final javax.swing.JFrame jf = Utils.getWekaJFrame(windowTitle, this);
       jf.getContentPane().setLayout(new BorderLayout());
 
       jf.getContentPane().add(cb, BorderLayout.CENTER);
@@ -2552,6 +2602,9 @@ public class ClassifierPanel extends AbstractPerspective implements
           jf.dispose();
         }
       });
+      jf.pack();
+      jf.setSize(1024, 700);
+      jf.setLocationRelativeTo(SwingUtilities.getWindowAncestor(this));
 
       jf.setVisible(true);
     }
@@ -2560,7 +2613,7 @@ public class ClassifierPanel extends AbstractPerspective implements
   /**
    * Pops up a VisualizePanel for visualizing the data and errors for the
    * classifier from the currently selected item in the results list.
-   * 
+   *
    * @param sp the VisualizePanel to pop up.
    */
   protected void visualizeClassifierErrors(VisualizePanel sp) {
@@ -2568,8 +2621,7 @@ public class ClassifierPanel extends AbstractPerspective implements
     if (sp != null) {
       String plotName = sp.getName();
       final javax.swing.JFrame jf =
-        new javax.swing.JFrame("Weka Classifier Visualize: " + plotName);
-      jf.setSize(600, 400);
+        Utils.getWekaJFrame("Weka Classifier Visualize: " + plotName, this);
       jf.getContentPane().setLayout(new BorderLayout());
 
       jf.getContentPane().add(sp, BorderLayout.CENTER);
@@ -2580,13 +2632,17 @@ public class ClassifierPanel extends AbstractPerspective implements
         }
       });
 
+      jf.pack();
+      jf.setSize(800, 600);
+      jf.setLocationRelativeTo(SwingUtilities.getWindowAncestor(this));
+
       jf.setVisible(true);
     }
   }
 
   /**
    * Save the currently selected classifier output to a file.
-   * 
+   *
    * @param name the name of the buffer to save
    */
   protected void saveBuffer(String name) {
@@ -2614,12 +2670,12 @@ public class ClassifierPanel extends AbstractPerspective implements
 
   /**
    * Saves the currently selected classifier.
-   * 
+   *
    * @param name the name of the run
    * @param classifier the classifier to save
    * @param trainHeader the header of the training instances
    */
-  protected void saveClassifier(String name, Classifier classifier,
+  public void saveClassifier(String name, Classifier classifier,
     Instances trainHeader) {
 
     File sFile = null;
@@ -2696,7 +2752,9 @@ public class ClassifierPanel extends AbstractPerspective implements
           if (selected.getName().endsWith(".gz")) {
             is = new GZIPInputStream(is);
           }
-          ObjectInputStream objectInputStream = new ObjectInputStream(is);
+          // ObjectInputStream objectInputStream = new ObjectInputStream(is);
+          ObjectInputStream objectInputStream =
+            SerializationHelper.getObjectInputStream(is);
           classifier = (Classifier) objectInputStream.readObject();
           try { // see if we can load the header
             trainHeader = (Instances) objectInputStream.readObject();
@@ -2775,7 +2833,7 @@ public class ClassifierPanel extends AbstractPerspective implements
   /**
    * Re-evaluates the named classifier with the current test set. Unpredictable
    * things will happen if the data set is not compatible with the classifier.
-   * 
+   *
    * @param name the name of the classifier entry
    * @param classifier the classifier to evaluate
    * @param trainHeader the header of the training set
@@ -2925,9 +2983,11 @@ public class ClassifierPanel extends AbstractPerspective implements
             // visualization if selected
             // if (saveVis) {
             plotInstances = ExplorerDefaults.getClassifierErrorsPlotInstances();
-            plotInstances.setInstances(trainHeader != null ? trainHeader : userTestStructure);
+            plotInstances.setInstances(trainHeader != null ? trainHeader
+              : userTestStructure);
             plotInstances.setClassifier(classifierToUse);
-            plotInstances.setClassIndex(trainHeader != null ? trainHeader.classIndex() : userTestStructure.classIndex());
+            plotInstances.setClassIndex(trainHeader != null ? trainHeader
+              .classIndex() : userTestStructure.classIndex());
             plotInstances.setSaveForVisualization(saveVis);
             plotInstances.setEvaluation(eval);
 
@@ -2961,8 +3021,9 @@ public class ClassifierPanel extends AbstractPerspective implements
 
             // make adjustments if the classifier is an InputMappedClassifier
             eval =
-              setupEval(eval, classifierToUse, trainHeader != null ? trainHeader : userTestStructure, costMatrix,
-                plotInstances, classificationOutput, false);
+              setupEval(eval, classifierToUse,
+                trainHeader != null ? trainHeader : userTestStructure,
+                costMatrix, plotInstances, classificationOutput, false);
             eval.useNoPriors();
             plotInstances.setUp();
 
@@ -3110,7 +3171,8 @@ public class ClassifierPanel extends AbstractPerspective implements
                 && plotInstances.getPlotInstances().numInstances() > 0) {
                 m_CurrentVis = new VisualizePanel();
                 if (getMainApplication() != null) {
-                  Settings settings = getMainApplication().getApplicationSettings();
+                  Settings settings =
+                    getMainApplication().getApplicationSettings();
                   m_CurrentVis.applySettings(settings,
                     weka.gui.explorer.VisualizePanel.ScatterDefaults.ID);
                 }
@@ -3144,14 +3206,14 @@ public class ClassifierPanel extends AbstractPerspective implements
                     vv.add(eval.predictions());
                     vv.add(userTestStructure.classAttribute());
                   }
-                  m_History.addObject(name, vv);
+                  m_History.addOrOverwriteObject(name, vv);
                 } else {
                   ArrayList<Object> vv = new ArrayList<Object>();
                   vv.add(classifierToUse);
                   if (trainHeader != null) {
                     vv.add(trainHeader);
                   }
-                  m_History.addObject(name, vv);
+                  m_History.addOrOverwriteObject(name, vv);
                 }
               }
             } catch (Exception ex) {
@@ -3182,7 +3244,7 @@ public class ClassifierPanel extends AbstractPerspective implements
 
   /**
    * updates the capabilities filter of the GOE.
-   * 
+   *
    * @param filter the new filter to use
    */
   protected void updateCapabilitiesFilter(Capabilities filter) {
@@ -3229,7 +3291,7 @@ public class ClassifierPanel extends AbstractPerspective implements
 
   /**
    * method gets called in case of a change event.
-   * 
+   *
    * @param e the associated change event
    */
   @Override
@@ -3244,7 +3306,7 @@ public class ClassifierPanel extends AbstractPerspective implements
   /**
    * Sets the Explorer to use as parent frame (used for sending notifications
    * about changes in the data).
-   * 
+   *
    * @param parent the parent frame
    */
   @Override
@@ -3254,7 +3316,7 @@ public class ClassifierPanel extends AbstractPerspective implements
 
   /**
    * returns the parent Explorer frame.
-   * 
+   *
    * @return the parent
    */
   @Override
@@ -3264,7 +3326,7 @@ public class ClassifierPanel extends AbstractPerspective implements
 
   /**
    * Returns the title for the tab in the Explorer.
-   * 
+   *
    * @return the title of this tab
    */
   @Override
@@ -3274,7 +3336,7 @@ public class ClassifierPanel extends AbstractPerspective implements
 
   /**
    * Returns the tooltip for the tab in the Explorer.
-   * 
+   *
    * @return the tooltip of this tab
    */
   @Override
@@ -3345,12 +3407,16 @@ public class ClassifierPanel extends AbstractPerspective implements
             ClassifierPanelDefaults.PERCENTAGE_SPLIT,
             Environment.getSystemWide()));
 
-        // TODO these widgets will disapear, as the "More options" dialog will
+        // TODO these widgets will disappear, as the "More options" dialog will
         // not be necessary
         m_OutputModelBut.setSelected(getMainApplication()
           .getApplicationSettings().getSetting(getPerspectiveID(),
             ClassifierPanelDefaults.OUTPUT_MODEL_KEY,
             ClassifierPanelDefaults.OUTPUT_MODEL, Environment.getSystemWide()));
+        m_OutputModelsForTrainingSplitsBut.setSelected(getMainApplication()
+                .getApplicationSettings().getSetting(getPerspectiveID(),
+                        ClassifierPanelDefaults.OUTPUT_MODELS_FOR_TRAINING_SPLITS_KEY,
+                        ClassifierPanelDefaults.OUTPUT_MODELS_FOR_TRAINING_SPLITS, Environment.getSystemWide()));
         m_OutputPerClassBut.setSelected(getMainApplication()
           .getApplicationSettings().getSetting(getPerspectiveID(),
             ClassifierPanelDefaults.OUTPUT_PER_CLASS_STATS_KEY,
@@ -3408,6 +3474,250 @@ public class ClassifierPanel extends AbstractPerspective implements
     }
   }
 
+  /**
+   * Gets whether cross-validation has been selected by the user
+   *
+   * @return true if cross-validation has been selected
+   */
+  public boolean isSelectedCV() {
+    return m_CVBut.isSelected();
+  }
+
+  /**
+   * Gets whether test on train has been selected by the user
+   *
+   * @return true if testing is to be done on the training set
+   */
+  public boolean isSelectedTestOnTrain() {
+    return m_TrainBut.isSelected();
+  }
+
+  /**
+   * Gets whether a percentage split has been selected by the user
+   *
+   * @return true if a percentage split has been selected
+   */
+  public boolean isSelectedPercentageSplit() {
+    return m_PercentBut.isSelected();
+  }
+
+  /**
+   * Gets whether a separate test set has been selected by the user
+   *
+   * @return true if a separate test set has been selected by the user
+   */
+  public boolean isSelectedSeparateTestSet() {
+    return m_TestSplitBut.isSelected();
+  }
+
+  /**
+   * Gets whether evaluation with respect to costs has been selected by the user
+   *
+   * @return true if eval with respect to costs
+   */
+  public boolean isSelectedEvalWithRespectToCosts() {
+    return m_EvalWRTCostsBut.isSelected();
+  }
+
+  /**
+   * Gets whether the user has opted to output the model
+   *
+   * @return true if the model is to be output
+   */
+  public boolean isSelectedOutputModel() {
+    return m_OutputModelBut.isSelected();
+  }
+
+  /**
+   * Gets whether the user has opted to output the models for the training splits
+   *
+   * @return true if the models for the training splits are to be output
+   */
+  public boolean isSelectedOutputModelsForTrainingSplits() {
+    return m_OutputModelsForTrainingSplitsBut.isSelected();
+  }
+
+  /**
+   * Gets whether the user has opted to output the confusion matrix
+   *
+   * @return true if the confusion matrix is to be output
+   */
+  public boolean isSelectedOutputConfusion() {
+    return m_OutputConfusionBut.isSelected();
+  }
+
+  /**
+   * Gets whether the user has opted to output per-class stats
+   *
+   * @return true if per-class stats are to be output
+   */
+  public boolean isSelectedOutputPerClassStats() {
+    return m_OutputPerClassBut.isSelected();
+  }
+
+  /**
+   * Gets whether the user has opted to output entropy metrics
+   *
+   * @return true if entropy metrics are to be output
+   */
+  public boolean isSelectedOutputEntropy() {
+    return m_OutputEntropyBut.isSelected();
+  }
+
+  /**
+   * Gets whether the user has opted to store the predictions in the history
+   *
+   * @return true if predictions are to be stored
+   */
+  public boolean isSelectedStorePredictions() {
+    return m_StorePredictionsBut.isSelected();
+  }
+
+  /**
+   * Gets whether the user has opted to output source code
+   *
+   * @return true if source code is to be output
+   */
+  public boolean isSelectedOutputSourceCode() {
+    return m_OutputSourceCode.isSelected();
+  }
+
+  /**
+   * Gets whether the user has opted to preserve order of instances in a
+   * percentage split
+   *
+   * @return whether the user has opted to preserve the instance order
+   */
+  public boolean isSelectedPreserveOrder() {
+    return m_PreserveOrderBut.isSelected();
+  }
+
+  /**
+   * Gets the name of the source code class to be generated
+   *
+   * @return the name of the source code class to be generated
+   */
+  public String getSourceCodeClassName() {
+    return m_SourceCodeClass.getText();
+  }
+
+  /**
+   * Get the current visualization
+   *
+   * @return the current visualization
+   */
+  public VisualizePanel getCurrentVisualization() {
+    return m_CurrentVis;
+  }
+
+  /**
+   * Set the current visualization
+   *
+   * @param current the visualization to use
+   */
+  public void setCurrentVisualization(VisualizePanel current) {
+    m_CurrentVis = current;
+  }
+
+  /**
+   * Get the selected (0-based) class index
+   *
+   * @return the selected class index
+   */
+  public int getSelectedClassIndex() {
+    return m_ClassCombo.getSelectedIndex();
+  }
+
+  /**
+   * Get the number of cross-validation folds to use
+   *
+   * @return the number of cross-validation folds to use
+   */
+  public int getNumCVFolds() {
+    return Integer.parseInt(m_CVText.getText());
+  }
+
+  /**
+   * Get the percentage to use for percentage split evaluation
+   *
+   * @return the percentage to use in a percent split evaluation
+   */
+  public double getPercentageSplit() {
+    return Double.parseDouble(m_PercentText.getText());
+  }
+
+  /**
+   * Get the currently configured classifier from the GenericObjectEditor
+   *
+   * @return the currently configured classifier
+   */
+  public Classifier getClassifier() {
+    return (Classifier) m_ClassifierEditor.getValue();
+  }
+
+  /**
+   * Get the cost matrix (if any)
+   *
+   * @return the cost matrix
+   */
+  public CostMatrix getCostMatrix() {
+    return (CostMatrix) m_CostMatrixEditor.getValue();
+  }
+
+  /**
+   * Get the formatter for classifcation output
+   *
+   * @return the formatter for classification output
+   */
+  public Object getClassificationOutputFormatter() {
+    return m_ClassificationOutputEditor.getValue();
+  }
+
+  /**
+   * Get the result history panel
+   *
+   * @return the result history panel
+   */
+  public ResultHistoryPanel getResultHistory() {
+    return m_History;
+  }
+
+  /**
+   * Get the loader object used for loading a separate test set
+   *
+   * @return the loader used for loading a separate test set
+   */
+  public Loader getSeparateTestSetLoader() {
+    return m_TestLoader;
+  }
+
+  /**
+   * Get the class index specified for the separate test set
+   *
+   * @return the class index specified for the separate test set
+   */
+  public int getSeparateTestSetClassIndex() {
+    return m_TestClassIndex;
+  }
+
+  /**
+   * Get the random seed
+   *
+   * @return the random seed
+   */
+  public int getRandomSeed() {
+    return Integer.parseInt(m_RandomSeedText.getText());
+  }
+
+  /**
+   * Get the log
+   *
+   * @return the log object
+   */
+  public Logger getLog() {
+    return m_Log;
+  }
+
   public static enum TestMode {
     CROSS_VALIDATION, PERCENTAGE_SPLIT, USE_TRAINING_SET, SEPARATE_TEST_SET;
   }
@@ -3441,6 +3751,11 @@ public class ClassifierPanel extends AbstractPerspective implements
       new Settings.SettingKey(ID + ".outputModel", "Output model obtained from"
         + " the full training set", "");
     protected static final boolean OUTPUT_MODEL = true;
+
+    protected static final Settings.SettingKey OUTPUT_MODELS_FOR_TRAINING_SPLITS_KEY =
+            new Settings.SettingKey(ID + ".outputModelsForTrainingSplits", "Output models obtained from"
+                    + " the training splits", "");
+    protected static final boolean OUTPUT_MODELS_FOR_TRAINING_SPLITS = false;
 
     protected static final Settings.SettingKey OUTPUT_PER_CLASS_STATS_KEY =
       new Settings.SettingKey(ID + ".outputPerClassStats",
@@ -3534,6 +3849,7 @@ public class ClassifierPanel extends AbstractPerspective implements
       m_defaults.put(CROSS_VALIDATION_FOLDS_KEY, CROSS_VALIDATION_FOLDS);
       m_defaults.put(PERCENTAGE_SPLIT_KEY, PERCENTAGE_SPLIT);
       m_defaults.put(OUTPUT_MODEL_KEY, OUTPUT_MODEL);
+      m_defaults.put(OUTPUT_MODELS_FOR_TRAINING_SPLITS_KEY, OUTPUT_MODELS_FOR_TRAINING_SPLITS);
       m_defaults.put(OUTPUT_PER_CLASS_STATS_KEY, OUTPUT_PER_CLASS_STATS);
       m_defaults.put(OUTPUT_ENTROPY_EVAL_METRICS_KEY,
         OUTPUT_ENTROPY_EVAL_METRICS);
@@ -3557,7 +3873,7 @@ public class ClassifierPanel extends AbstractPerspective implements
 
   /**
    * Tests out the classifier panel from the command line.
-   * 
+   *
    * @param args may optionally contain the name of a dataset to load.
    */
   public static void main(String[] args) {

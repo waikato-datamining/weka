@@ -1,4 +1,5 @@
-<project name="weka" default="compile" basedir=".">
+<project name="weka" default="compile" basedir="." 
+ xmlns:if="ant:if" xmlns:unless="ant:unless">
 <!-- 
   ===========================================================================
    Ant build file for weka. Tested with ant 1.6.5 and Junit 3.8.2. Requires
@@ -55,22 +56,37 @@
     <pathelement path="${java.class.path}" />
   </path>
 
+  <!-- check whether packages present -->
+  <condition property="packages_present" else="false">
+    <and>
+      <available file="${packages_internal}" type="dir"/>
+      <available file="${packages_external}" type="dir"/>
+    </and>
+  </condition>
+
+  <!-- check java version -->
+  <condition property="not_java_9" else="false">
+    <or>
+      <equals arg1="ant.java.version" arg2="1.8"/>
+    </or>
+  </condition>
+
   <property name="proj.cp" refid="project.class.path"/>
   <path id="package.class.path">
     <pathelement path="${proj.cp}"/>
-    <dirset dir="${packages_internal}">
+    <dirset dir="${packages_internal}" if:true="packages_present">
         <include name="**/${build}/classes"/>
         <include name="**/${build}/testcases"/>
    </dirset>
-   <dirset dir="${packages_external}">
+   <dirset dir="${packages_external}" if:true="packages_present">
      <include name="**/${build}/classes"/>
      <include name="**/${build}/testcases"/>
    </dirset>
-   <fileset dir="${packages_external}">
+   <fileset dir="${packages_external}" if:true="packages_present">
      <include name="**/lib/*.jar"/>
      <include name="**/lib/*.zip"/>
    </fileset>
-   <fileset dir="${packages_internal}">
+   <fileset dir="${packages_internal}" if:true="packages_present">
      <include name="**/lib/*.jar"/>
      <include name="**/lib/*.zip"/>
    </fileset>

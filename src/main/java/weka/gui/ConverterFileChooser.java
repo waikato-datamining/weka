@@ -22,10 +22,12 @@ package weka.gui;
 
 import weka.core.Capabilities;
 import weka.core.Instances;
+import weka.core.WekaPackageClassLoaderManager;
 import weka.core.converters.AbstractFileLoader;
 import weka.core.converters.AbstractFileSaver;
 import weka.core.converters.AbstractLoader;
 import weka.core.converters.AbstractSaver;
+import weka.core.converters.ConverterResources;
 import weka.core.converters.ConverterUtils;
 import weka.core.converters.FileSourcedConverter;
 
@@ -52,7 +54,7 @@ import java.util.Vector;
  * can set a Capabilities filter.
  * 
  * @author fracpete (fracpete at waikato dot ac dot nz)
- * @version $Revision: 12161 $
+ * @version $Revision: 14285 $
  * @see #setCapabilitiesFilter(Capabilities)
  */
 public class ConverterFileChooser extends JFileChooser {
@@ -121,8 +123,8 @@ public class ConverterFileChooser extends JFileChooser {
    * whether to display only core converters (hardcoded in ConverterUtils).
    * Necessary for RMI/Remote Experiments for instance.
    * 
-   * @see ConverterUtils#CORE_FILE_LOADERS
-   * @see ConverterUtils#CORE_FILE_SAVERS
+   * @see weka.core.converters.ConverterResources#CORE_FILE_LOADERS
+   * @see weka.core.converters.ConverterResources#CORE_FILE_SAVERS
    */
   protected boolean m_CoreConvertersOnly = false;
 
@@ -134,6 +136,7 @@ public class ConverterFileChooser extends JFileChooser {
    * Initialize the default set of filters for loaders and savers
    */
   public static void initDefaultFilters() {
+    ConverterUtils.initialize();
     initFilters(true, ConverterUtils.getFileLoaders());
     initFilters(false, ConverterUtils.getFileSavers());
   }
@@ -236,7 +239,7 @@ public class ConverterFileChooser extends JFileChooser {
         filter = list.get(i);
         loader = ConverterUtils
           .getLoaderForExtension(filter.getExtensions()[0]);
-        if (ConverterUtils.isCoreFileLoader(loader.getClass().getName())) {
+        if (ConverterResources.isCoreFileLoader(loader.getClass().getName())) {
           result.add(filter);
         }
       }
@@ -266,7 +269,7 @@ public class ConverterFileChooser extends JFileChooser {
       for (i = 0; i < list.size(); i++) {
         filter = list.get(i);
         saver = ConverterUtils.getSaverForExtension(filter.getExtensions()[0]);
-        if (ConverterUtils.isCoreFileSaver(saver.getClass().getName())) {
+        if (ConverterResources.isCoreFileSaver(saver.getClass().getName())) {
           result.add(filter);
         }
       }
@@ -333,7 +336,7 @@ public class ConverterFileChooser extends JFileChooser {
 
       // get data from converter
       try {
-        cls = Class.forName(classname);
+        cls = WekaPackageClassLoaderManager.forName(classname);
         converter = (FileSourcedConverter) cls.newInstance();
         ext = converter.getFileExtensions();
         desc = converter.getFileDescription();

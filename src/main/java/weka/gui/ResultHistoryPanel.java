@@ -21,10 +21,7 @@
 
 package weka.gui;
 
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Font;
-import java.awt.Point;
+import java.awt.*;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
@@ -33,23 +30,18 @@ import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Hashtable;
+import java.util.List;
 
-import javax.swing.BorderFactory;
-import javax.swing.DefaultListModel;
-import javax.swing.JFrame;
-import javax.swing.JList;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
-import javax.swing.JViewport;
-import javax.swing.ListSelectionModel;
+import javax.swing.*;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import javax.swing.text.JTextComponent;
 
+import weka.core.Utils;
 import weka.gui.visualize.PrintableComponent;
 
 /**
@@ -59,7 +51,7 @@ import weka.gui.visualize.PrintableComponent;
  * that will have it's text set to the named result text on a left-click.
  * 
  * @author Len Trigg (trigg@cs.waikato.ac.nz)
- * @version $Revision: 12030 $
+ * @version $Revision: 14493 $
  */
 public class ResultHistoryPanel extends JPanel {
 
@@ -98,6 +90,9 @@ public class ResultHistoryPanel extends JPanel {
   /** for printing the output to files */
   protected PrintableComponent m_Printer = null;
 
+  /** Something listening for list deletions */
+  protected transient RDeleteListener m_deleteListener;
+
   /**
    * Extension of MouseAdapter that implements Serializable.
    */
@@ -118,6 +113,26 @@ public class ResultHistoryPanel extends JPanel {
   }
 
   /**
+   * Interface for something to be notified when an entry in the list is deleted
+   */
+  public static interface RDeleteListener {
+
+    /**
+     * Called when an entry in the list is deleted
+     *
+     * @param name the name of the entry deleted
+     * @param index the index of the entry deleted
+     */
+    void entryDeleted(String name, int index);
+
+    /**
+     * @param names
+     * @param indexes
+     */
+    void entriesDeleted(List<String> names, List<Integer> indexes);
+  }
+
+  /**
    * Create the result history object
    * 
    * @param text the optional text component for single-click display
@@ -127,23 +142,24 @@ public class ResultHistoryPanel extends JPanel {
     if (text != null) {
       m_Printer = new PrintableComponent(m_SingleText);
     }
-    m_List.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+    //m_List.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+    m_List.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
     m_List.addMouseListener(new RMouseAdapter() {
       private static final long serialVersionUID = -9015397020486290479L;
 
       @Override
       public void mouseClicked(MouseEvent e) {
         if ((e.getModifiers() & InputEvent.BUTTON1_MASK) == InputEvent.BUTTON1_MASK) {
-          if (((e.getModifiers() & InputEvent.SHIFT_DOWN_MASK) == 0)
-            && ((e.getModifiers() & InputEvent.CTRL_DOWN_MASK) == 0)) {
-            int index = m_List.locationToIndex(e.getPoint());
-            if ((index != -1) && (m_SingleText != null)) {
-              setSingle((String) m_Model.elementAt(index));
-            }
-          }
+//          if (((e.getModifiers() & InputEvent.SHIFT_DOWN_MASK) == 0)
+//            && ((e.getModifiers() & InputEvent.CTRL_DOWN_MASK) == 0)) {
+//            int index = m_List.locationToIndex(e.getPoint());
+//            if ((index != -1) && (m_SingleText != null)) {
+//              setSingle((String) m_Model.elementAt(index));
+//            }
+//          }
         } else {
           // if there are stored objects then assume that the storer
-          // will handle popping up the text in a seperate frame
+          // will handle popping up the text in a separate frame
           if (m_HandleRightClicks) {
             int index = m_List.locationToIndex(e.getPoint());
             if (index != -1) {
@@ -161,10 +177,16 @@ public class ResultHistoryPanel extends JPanel {
       @Override
       public void keyReleased(KeyEvent e) {
         if (e.getKeyCode() == KeyEvent.VK_DELETE) {
-          int selected = m_List.getSelectedIndex();
-          if (selected != -1) {
-            removeResult((String) m_Model.elementAt(selected));
-          }
+          removeResults(m_List.getSelectedIndices());
+
+//          int selected = m_List.getSelectedIndex();
+//          if (selected != -1) {
+//            String element = m_Model.elementAt(selected).toString();
+//            removeResult(element);
+//            if (m_deleteListener != null) {
+//              m_deleteListener.entryDeleted(element, selected);
+//            }
+//          }
         }
       }
     });
@@ -173,14 +195,16 @@ public class ResultHistoryPanel extends JPanel {
         @Override
         public void valueChanged(ListSelectionEvent e) {
           if (!e.getValueIsAdjusting()) {
-            ListSelectionModel lm = (ListSelectionModel) e.getSource();
-            for (int i = e.getFirstIndex(); i <= e.getLastIndex(); i++) {
-              if (lm.isSelectedIndex(i)) {
-                // m_AttSummaryPanel.setAttribute(i);
-                if ((i != -1) && (m_SingleText != null)) {
-                  setSingle((String) m_Model.elementAt(i));
+            if (m_List.getSelectedIndices().length <= 1) {
+              ListSelectionModel lm = (ListSelectionModel) e.getSource();
+              for (int i = e.getFirstIndex(); i <= e.getLastIndex(); i++) {
+                if (lm.isSelectedIndex(i)) {
+                  // m_AttSummaryPanel.setAttribute(i);
+                  if ((i != -1) && (m_SingleText != null)) {
+                    setSingle((String) m_Model.elementAt(i));
+                  }
+                  break;
                 }
-                break;
               }
             }
           }
@@ -208,21 +232,61 @@ public class ResultHistoryPanel extends JPanel {
   }
 
   /**
+   * Set a listener for deletions from the list
+   *
+   * @param listener the listener to set
+   */
+  public void setDeleteListener(RDeleteListener listener) {
+    m_deleteListener = listener;
+  }
+
+  /**
    * Adds a new result to the result list.
-   * 
+   *
    * @param name the name to associate with the result
    * @param result the StringBuffer that contains the result text
    */
   public void addResult(String name, StringBuffer result) {
+    String nameCopy = name;
+    int i = 0;
+    while (m_Results.containsKey(nameCopy)) {
+      nameCopy = name + "_" + i++;
+    }
 
-    m_Model.addElement(name);
-    m_Results.put(name, result);
+    m_Model.addElement(nameCopy);
+    m_Results.put(nameCopy, result);
+  }
+
+  /**
+   * Remove the entries at the specified indices in the list
+   *
+   * @param selectedI the entries to remove
+   */
+  public void removeResults(int[] selectedI) {
+    if (selectedI != null && selectedI.length > 0) {
+      List<String> elsToDelete = new ArrayList<String>();
+      for (int i : selectedI) {
+        elsToDelete.add(m_Model.elementAt(i).toString());
+      }
+      removeResults(elsToDelete);
+    }
+  }
+
+  /**
+   * Remove the specified entries from the list
+   *
+   * @param entries the entries to remove
+   */
+  public void removeResults(List<String> entries) {
+    for (String el : entries) {
+      removeResult(el);
+    }
   }
 
   /**
    * Removes one of the result buffers from the history. Any windows currently
    * displaying the contents of the buffer are not affected.
-   * 
+   *
    * @param name the name of the buffer to remove.
    */
   public void removeResult(String name) {
@@ -248,12 +312,31 @@ public class ResultHistoryPanel extends JPanel {
   }
 
   /**
-   * Adds an object to the results list
-   * 
+   * Adds an object to the results list. If an object with the same
+   * name already exists, then a number is appended to the end of the name
+   * to make it unique.
+   *
    * @param name the name to associate with the object
    * @param o the object
    */
   public void addObject(String name, Object o) {
+    String nameCopy = name;
+    int i = 0;
+    while (m_Objs.containsKey(nameCopy)) {
+      nameCopy = name + "_" + i++;
+    }
+
+    m_Objs.put(nameCopy, o);
+  }
+
+  /**
+   * Adds an object to the result list. Overwrites any exsiting
+   * object with the same name
+   * 
+   * @param name the name to associate with the object
+   * @param o the object
+   */
+  public void addOrOverwriteObject(String name, Object o) {
     m_Objs.put(name, o);
   }
 
@@ -353,9 +436,9 @@ public class ResultHistoryPanel extends JPanel {
   }
 
   /**
-   * Set the selected list entry. Note, does not update the single
-   * click display to the corresponding named result - use setSingle()
-   * to set the selected list entry and view the corresponding result
+   * Set the selected list entry. Note, does not update the single click display
+   * to the corresponding named result - use setSingle() to set the selected
+   * list entry and view the corresponding result
    *
    * @param name the name of the list entry to be selected
    */
@@ -380,7 +463,7 @@ public class ResultHistoryPanel extends JPanel {
       ta.setEditable(false);
       ta.setText(buff.toString());
       m_FramedOutput.put(name, ta);
-      final JFrame jf = new JFrame(name);
+      final JFrame jf = Utils.getWekaJFrame(name, this);
       jf.addWindowListener(new WindowAdapter() {
         @Override
         public void windowClosing(WindowEvent e) {
@@ -391,7 +474,8 @@ public class ResultHistoryPanel extends JPanel {
       jf.getContentPane().setLayout(new BorderLayout());
       jf.getContentPane().add(new JScrollPane(ta), BorderLayout.CENTER);
       jf.pack();
-      jf.setSize(450, 350);
+      jf.setSize(800, 600);
+      jf.setLocationRelativeTo(SwingUtilities.getWindowAncestor(this));
       jf.setVisible(true);
     }
   }

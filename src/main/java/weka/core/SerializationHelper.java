@@ -21,6 +21,8 @@
 package weka.core;
 
 import java.io.*;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.Vector;
 
 /**
@@ -29,7 +31,7 @@ import java.util.Vector;
  * to and from files or streams.
  * 
  * @author fracpete (fracpete at waikato dot ac dot nz)
- * @version $Revision: 12580 $
+ * @version $Revision: 14293 $
  */
 public class SerializationHelper implements RevisionHandler {
 
@@ -48,7 +50,8 @@ public class SerializationHelper implements RevisionHandler {
     boolean result;
 
     try {
-      result = isSerializable(Class.forName(classname));
+      // result = isSerializable(Class.forName(classname));
+      result = isSerializable(WekaPackageClassLoaderManager.forName(classname));
     } catch (Exception e) {
       result = false;
     }
@@ -64,7 +67,7 @@ public class SerializationHelper implements RevisionHandler {
    *         Serializable interface, otherwise false
    */
   public static boolean isSerializable(Class<?> c) {
-    return ClassDiscovery.hasInterface(Serializable.class, c);
+    return InheritanceUtils.hasInterface(Serializable.class, c);
   }
 
   /**
@@ -79,7 +82,8 @@ public class SerializationHelper implements RevisionHandler {
     boolean result;
 
     try {
-      result = hasUID(Class.forName(classname));
+      // result = hasUID(Class.forName(classname));
+      result = hasUID(WekaPackageClassLoaderManager.forName(classname));
     } catch (Exception e) {
       result = false;
     }
@@ -124,7 +128,8 @@ public class SerializationHelper implements RevisionHandler {
     boolean result;
 
     try {
-      result = needsUID(Class.forName(classname));
+      // result = needsUID(Class.forName(classname));
+      result = needsUID(WekaPackageClassLoaderManager.forName(classname));
     } catch (Exception e) {
       result = false;
     }
@@ -163,7 +168,8 @@ public class SerializationHelper implements RevisionHandler {
     long result;
 
     try {
-      result = getUID(Class.forName(classname));
+      // result = getUID(Class.forName(classname));
+      result = getUID(WekaPackageClassLoaderManager.forName(classname));
     } catch (Exception e) {
       result = 0L;
     }
@@ -268,15 +274,99 @@ public class SerializationHelper implements RevisionHandler {
     ObjectInputStream ois;
     Object result;
 
-    if (!(stream instanceof BufferedInputStream)) {
-      stream = new BufferedInputStream(stream);
-    }
-
-    ois = new ObjectInputStream(stream);
+    ois = getObjectInputStream(stream);
     result = ois.readObject();
     ois.close();
 
     return result;
+  }
+
+  /**
+   * Checks to see if the supplied package class loader (or any of its dependent
+   * package class loaders) has the given third party class.
+   *
+   * @param className the name of the third-party class to check for
+   * @param l the third party class loader
+   * @return the class loader that owns the named third-party class, or null if
+   *         not found.
+   */
+  public static ClassLoader checkForThirdPartyClass(String className,
+    WekaPackageLibIsolatingClassLoader l) {
+    ClassLoader result = null;
+
+    if (l.hasThirdPartyClass(className)) {
+      return l;
+    }
+
+    for (WekaPackageLibIsolatingClassLoader dep : l
+      .getPackageClassLoadersForDependencies()) {
+      result = checkForThirdPartyClass(className, dep);
+      if (result != null) {
+        break;
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Get a (Weka package classloader aware) {@code ObjectInputStream} instance
+   * for reading objects from the supplied input stream
+   *
+   * @param stream the stream to wrap
+   * @return an {@code ObjectInputStream} instance that is aware of of Weka
+   *         package classloaders
+   * @throws IOException if a problem occurs
+   */
+  public static ObjectInputStream getObjectInputStream(InputStream stream)
+    throws IOException {
+    if (!(stream instanceof BufferedInputStream)) {
+      stream = new BufferedInputStream(stream);
+    }
+
+    return new ObjectInputStream(stream) {
+      protected Set<WekaPackageLibIsolatingClassLoader> m_thirdPartyLoaders =
+        new LinkedHashSet<>();
+
+      @Override
+      protected Class<?> resolveClass(ObjectStreamClass desc)
+        throws IOException, ClassNotFoundException {
+
+        // make sure that the type descriptor for arrays gets removed from
+        // what we're going to look up!
+        String arrayStripped =
+          desc.getName().replace("[L", "").replace("[", "").replace(";", "");
+        ClassLoader cl =
+          WekaPackageClassLoaderManager.getWekaPackageClassLoaderManager()
+            .getLoaderForClass(arrayStripped);
+
+        if (cl instanceof WekaPackageLibIsolatingClassLoader) {
+          // might be third-party classes involved, store the classloader
+          m_thirdPartyLoaders
+            .add((WekaPackageLibIsolatingClassLoader) cl);
+        }
+
+        Class<?> result = null;
+        try {
+          result = Class.forName(desc.getName(), true, cl);
+        } catch (ClassNotFoundException ex) {
+          for (WekaPackageLibIsolatingClassLoader l : m_thirdPartyLoaders) {
+            ClassLoader checked =
+              checkForThirdPartyClass(arrayStripped, l);
+            if (checked != null) {
+              result = Class.forName(desc.getName(), true, checked);
+            }
+          }
+        }
+
+        if (result == null) {
+          throw new ClassNotFoundException("Unable to find class "
+            + arrayStripped);
+        }
+
+        return result;
+      }
+    };
   }
 
   /**
@@ -301,11 +391,8 @@ public class SerializationHelper implements RevisionHandler {
     ObjectInputStream ois;
     Vector<Object> result;
 
-    if (!(stream instanceof BufferedInputStream)) {
-      stream = new BufferedInputStream(stream);
-    }
+    ois = getObjectInputStream(stream);
 
-    ois = new ObjectInputStream(stream);
     result = new Vector<Object>();
     try {
       while (true) {
@@ -326,7 +413,7 @@ public class SerializationHelper implements RevisionHandler {
    */
   @Override
   public String getRevision() {
-    return RevisionUtils.extract("$Revision: 12580 $");
+    return RevisionUtils.extract("$Revision: 14293 $");
   }
 
   /**

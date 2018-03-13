@@ -33,7 +33,7 @@ import weka.core.Utils;
  * file <code>weka/gui/explorer/Explorer.props</code>.
  * 
  * @author FracPete (fracpete at waikato dot ac dot nz)
- * @version $Revision: 10222 $
+ * @version $Revision: 14444 $
  * @see #PROPERTY_FILE
  */
 public class ExplorerDefaults implements Serializable {
@@ -243,6 +243,15 @@ public class ExplorerDefaults implements Serializable {
    */
   public static boolean getClassifierOutputModel() {
     return Boolean.parseBoolean(get("ClassifierOutputModel", "true"));
+  }
+
+  /**
+   * returns whether the models built for the training set are output
+   *
+   * @return true if the models built for the training set are output
+   */
+  public static boolean getClassifierOutputModelsForTrainingSplits() {
+    return Boolean.parseBoolean(get("ClassifierOutputModelsForTrainingSplits", "false"));
   }
 
   /**

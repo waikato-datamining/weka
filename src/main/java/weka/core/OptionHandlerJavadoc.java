@@ -62,7 +62,7 @@ import java.util.Vector;
  * <!-- options-end -->
  * 
  * @author fracpete (fracpete at waikato dot ac dot nz)
- * @version $Revision: 11734 $
+ * @version $Revision: 14293 $
  * @see #OPTIONS_STARTTAG
  * @see #OPTIONS_ENDTAG
  */
@@ -176,7 +176,7 @@ public class OptionHandlerJavadoc extends Javadoc {
         return result;
       }
 
-      if (!ClassDiscovery.hasInterface(OptionHandler.class, getInstance()
+      if (!InheritanceUtils.hasInterface(OptionHandler.class, getInstance()
         .getClass())) {
         throw new Exception("Class '" + getClassname()
           + "' is not an OptionHandler!");
@@ -219,7 +219,7 @@ public class OptionHandlerJavadoc extends Javadoc {
    */
   @Override
   public String getRevision() {
-    return RevisionUtils.extract("$Revision: 11734 $");
+    return RevisionUtils.extract("$Revision: 14293 $");
   }
 
   /**

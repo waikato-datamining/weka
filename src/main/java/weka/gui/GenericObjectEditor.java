@@ -26,43 +26,25 @@ import weka.core.Capabilities.Capability;
 import weka.core.CapabilitiesHandler;
 import weka.core.ClassDiscovery;
 import weka.core.CustomDisplayStringProvider;
+import weka.core.InheritanceUtils;
 import weka.core.OptionHandler;
+import weka.core.SerializationHelper;
 import weka.core.SerializedObject;
 import weka.core.Utils;
+import weka.core.WekaPackageClassLoaderManager;
 import weka.core.WekaPackageManager;
 import weka.core.logging.Logger;
 import weka.gui.CheckBoxList.CheckBoxListModel;
 import weka.core.PluginManager;
 
-import javax.swing.BorderFactory;
-import javax.swing.JButton;
-import javax.swing.JDialog;
-import javax.swing.JFileChooser;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-import javax.swing.JScrollPane;
-import javax.swing.JTree;
-import javax.swing.ToolTipManager;
+import javax.swing.*;
 import javax.swing.event.TreeSelectionEvent;
 import javax.swing.event.TreeSelectionListener;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
-import java.awt.BorderLayout;
-import java.awt.Component;
-import java.awt.Dimension;
-import java.awt.FlowLayout;
-import java.awt.FontMetrics;
-import java.awt.Frame;
-import java.awt.GridLayout;
-import java.awt.Window;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.MouseEvent;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
+import java.awt.*;
+import java.awt.event.*;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
@@ -115,7 +97,7 @@ import java.util.Vector;
  * @author Xin Xu (xx5@cs.waikato.ac.nz)
  * @author Richard Kirkby (rkirkby@cs.waikato.ac.nz)
  * @author FracPete (fracpete at waikato dot ac dot nz)
- * @version $Revision: 12409 $
+ * @version $Revision: 14626 $
  */
 public class GenericObjectEditor implements PropertyEditor, CustomPanelSupplier {
 
@@ -139,6 +121,9 @@ public class GenericObjectEditor implements PropertyEditor, CustomPanelSupplier 
 
   /** The GUI component for editing values, created when needed. */
   protected GOEPanel m_EditorComponent;
+
+  /** True if the cancel button was pressed */
+  protected boolean m_CancelWasPressed;
 
   /** True if the GUI component is needed. */
   protected boolean m_Enabled = true;
@@ -344,8 +329,9 @@ public class GenericObjectEditor implements PropertyEditor, CustomPanelSupplier 
 
       classname = getClassnameFromPath(new TreePath(getPath()));
       try {
-        cls = Class.forName(classname);
-        if (!ClassDiscovery.hasInterface(CapabilitiesHandler.class, cls)) {
+        // cls = Class.forName(classname);
+        cls = WekaPackageClassLoaderManager.forName(classname);
+        if (!InheritanceUtils.hasInterface(CapabilitiesHandler.class, cls)) {
           return;
         }
 
@@ -617,7 +603,7 @@ public class GenericObjectEditor implements PropertyEditor, CustomPanelSupplier 
       JPanel panel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
       add(panel, BorderLayout.SOUTH);
 
-      if (ClassDiscovery.hasInterface(CapabilitiesHandler.class, m_ClassType)) {
+      if (InheritanceUtils.hasInterface(CapabilitiesHandler.class, m_ClassType)) {
         // filter
         m_FilterButton.setMnemonic('F');
         m_FilterButton.addActionListener(new ActionListener() {
@@ -627,6 +613,7 @@ public class GenericObjectEditor implements PropertyEditor, CustomPanelSupplier 
               CapabilitiesFilterDialog dialog = new CapabilitiesFilterDialog();
               dialog.setCapabilities(m_CapabilitiesFilter);
               dialog.setPopup(m_Self);
+              dialog.setLocationRelativeTo(m_Self);
               dialog.setVisible(true);
               m_Support.firePropertyChange("", null, null);
               repaint();
@@ -673,7 +660,7 @@ public class GenericObjectEditor implements PropertyEditor, CustomPanelSupplier 
 
       m_scroller = new JScrollPane(treeView);
 
-      m_scroller.setPreferredSize(new Dimension(300, 400));
+      m_scroller.setPreferredSize(new Dimension(350, 500));
       m_scroller.getVerticalScrollBar().setUnitIncrement(20);
 
       add(m_scroller);
@@ -692,15 +679,25 @@ public class GenericObjectEditor implements PropertyEditor, CustomPanelSupplier 
       super.show(invoker, x, y);
 
       // calculate available screen area for popup
-      java.awt.Point location = getLocationOnScreen();
-      java.awt.Dimension screenSize = getToolkit().getScreenSize();
-      int maxWidth = (int) (screenSize.getWidth() - location.getX());
-      int maxHeight = (int) (screenSize.getHeight() - location.getY());
+      Rectangle r = new Rectangle();
+      GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+      GraphicsDevice[] gs = ge.getScreenDevices();
+      for (int j = 0; j < gs.length; j++) {
+        GraphicsDevice gd = gs[j];
+        GraphicsConfiguration[] gc = gd.getConfigurations();
+        for (int i =0 ; i < gc.length; i++) {
+          r = r.union(gc[i].getBounds());
+        }
+      }
+
+      java.awt.Point location = invoker.getLocationOnScreen();
+      int maxWidth = (int) (r.getX() + r.getWidth() - location.getX());
+      int maxHeight = (int) (r.getY() + r.getHeight() - location.getY());
 
       // if the part of the popup goes off the screen then resize it
-      Dimension scrollerSize = m_scroller.getPreferredSize();
-      int height = (int) scrollerSize.getHeight();
-      int width = (int) scrollerSize.getWidth();
+      Dimension size = getPreferredSize();
+      int height = (int) size.getHeight();
+      int width = (int) size.getWidth();
       if (width > maxWidth) {
         width = maxWidth;
       }
@@ -709,9 +706,11 @@ public class GenericObjectEditor implements PropertyEditor, CustomPanelSupplier 
       }
 
       // commit any size changes
-      m_scroller.setPreferredSize(new Dimension(width, height));
+      setPreferredSize(new Dimension(width, height));
+      setLocation(location);
       revalidate();
       pack();
+      m_tree.requestFocusInWindow();
     }
   }
 
@@ -796,6 +795,7 @@ public class GenericObjectEditor implements PropertyEditor, CustomPanelSupplier 
         public void actionPerformed(ActionEvent e) {
 
           m_ChildPropertySheet.closingOK();
+          m_CancelWasPressed = false;
           m_Backup = copyObject(m_Object);
           if ((getTopLevelAncestor() != null)
             && (getTopLevelAncestor() instanceof Window)) {
@@ -812,6 +812,7 @@ public class GenericObjectEditor implements PropertyEditor, CustomPanelSupplier 
         public void actionPerformed(ActionEvent e) {
 
           m_ChildPropertySheet.closingCancel();
+          m_CancelWasPressed = true;
           if (m_Backup != null) {
 
             m_Object = copyObject(m_Backup);
@@ -893,8 +894,10 @@ public class GenericObjectEditor implements PropertyEditor, CustomPanelSupplier 
       if (returnVal == JFileChooser.APPROVE_OPTION) {
         File selected = m_FileChooser.getSelectedFile();
         try {
-          ObjectInputStream oi = new ObjectInputStream(new BufferedInputStream(
-            new FileInputStream(selected)));
+          ObjectInputStream oi =
+            SerializationHelper.getObjectInputStream(new BufferedInputStream(new FileInputStream(selected)));
+          /* ObjectInputStream oi = new ObjectInputStream(new BufferedInputStream(
+            new FileInputStream(selected))); */
           Object obj = oi.readObject();
           oi.close();
           if (!m_ClassType.isAssignableFrom(obj.getClass())) {
@@ -1097,19 +1100,31 @@ public class GenericObjectEditor implements PropertyEditor, CustomPanelSupplier 
   }
 
   public static void registerEditor(String name, String value) {
+
+    // skip (and don't try to instantiate) the ShowGlobalInfoToolTip
+    // property as a class; and any other non-class properties. Makes
+    // the assumption that anything that should be instantiated is not
+    // in the default package.
+    if (!name.contains(".")) {
+      return;
+    }
+
     Class<?> baseCls;
     Class<?> cls;
 
     try {
       // array class?
       if (name.endsWith("[]")) {
-        baseCls = Class.forName(name.substring(0, name.indexOf("[]")));
+        //baseCls = Class.forName(name.substring(0, name.indexOf("[]")));
+        baseCls = WekaPackageClassLoaderManager.forName(name.substring(0, name.indexOf("[]")));
         cls = Array.newInstance(baseCls, 1).getClass();
       } else {
-        cls = Class.forName(name);
+        // cls = Class.forName(name);
+        cls = WekaPackageClassLoaderManager.forName(name);
       }
       // register
-      PropertyEditorManager.registerEditor(cls, Class.forName(value));
+      //PropertyEditorManager.registerEditor(cls, Class.forName(value));
+      PropertyEditorManager.registerEditor(cls, WekaPackageClassLoaderManager.forName(value));
     } catch (Exception e) {
       Logger.log(weka.core.logging.Logger.Level.WARNING, "Problem registering "
         + name + "/" + value + ": " + e);
@@ -1352,7 +1367,8 @@ public class GenericObjectEditor implements PropertyEditor, CustomPanelSupplier 
           }
 
           String defaultValue = hpp.fullValue();
-          setValue(Class.forName(defaultValue).newInstance());
+          // setValue(Class.forName(defaultValue).newInstance());
+          setValue(WekaPackageClassLoaderManager.forName(defaultValue).newInstance());
         }
       }
     } catch (Exception ex) {
@@ -1360,6 +1376,16 @@ public class GenericObjectEditor implements PropertyEditor, CustomPanelSupplier 
         "Problem loading the first class: " + hpp.fullValue());
       ex.printStackTrace();
     }
+  }
+
+  /**
+   * True if the cancel button was used to close the editor.
+   *
+   * @return true if the cancel button was pressed the last time the
+   * editor was closed
+   */
+  public boolean wasCancelPressed() {
+    return m_CancelWasPressed;
   }
 
   /**
@@ -1372,13 +1398,19 @@ public class GenericObjectEditor implements PropertyEditor, CustomPanelSupplier 
   public void setValue(Object o) {
 
     if (m_ClassType == null) {
+      JOptionPane.showMessageDialog(null,
+              "No ClassType set up for GenericObjectEditor.", "Error...",
+              JOptionPane.ERROR_MESSAGE);
       Logger.log(weka.core.logging.Logger.Level.WARNING,
-        "No ClassType set up for GenericObjectEditor!!");
+        "No ClassType set up for GenericObjectEditor!");
       return;
     }
     if (!m_ClassType.isAssignableFrom(o.getClass())) {
+      JOptionPane.showMessageDialog(null,
+              "Object not of correct type and cannot be assigned.", "Error...",
+              JOptionPane.ERROR_MESSAGE);
       Logger.log(weka.core.logging.Logger.Level.WARNING,
-        "setValue object not of correct type!");
+        "Object not of correct type and cannot be assigned!");
       return;
     }
 
@@ -1389,6 +1421,7 @@ public class GenericObjectEditor implements PropertyEditor, CustomPanelSupplier 
     }
 
     updateObjectNames();
+    m_CancelWasPressed = false;
   }
 
   /**
@@ -1633,8 +1666,6 @@ public class GenericObjectEditor implements PropertyEditor, CustomPanelSupplier 
         if (e.getSource() instanceof Component) {
           Component comp = (Component) e.getSource();
           popup.show(comp, comp.getX(), comp.getY());
-          popup.pack();
-          popup.repaint();
         }
       }
     });
@@ -1644,7 +1675,7 @@ public class GenericObjectEditor implements PropertyEditor, CustomPanelSupplier 
 
   /**
    * creates a classname from the given path.
-   * 
+   *
    * @param path the path to generate the classname from
    * @return the generated classname
    */
@@ -1661,8 +1692,7 @@ public class GenericObjectEditor implements PropertyEditor, CustomPanelSupplier 
       if (i > start) {
         classname.append(".");
       }
-      classname.append((String) ((GOETreeNode) path.getPathComponent(i))
-        .getUserObject());
+      classname.append((String) ((GOETreeNode) path.getPathComponent(i)).getUserObject());
     }
 
     return classname.toString();
@@ -1682,15 +1712,20 @@ public class GenericObjectEditor implements PropertyEditor, CustomPanelSupplier 
     final JTree tree = createTree(m_ObjectNames);
     if (m_treeNodeOfCurrentObject != null) {
       tree.setSelectionPath(new TreePath(m_treeNodeOfCurrentObject.getPath()));
+    } else {
+      TreePath path = tree.getPathForRow(0);
+      if (path != null) {
+        tree.setSelectionPath(path);
+      }
     }
-    tree.getSelectionModel().setSelectionMode(
-      TreeSelectionModel.SINGLE_TREE_SELECTION);
+    tree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
 
     // create the popup
     final JPopupMenu popup = new JTreePopupMenu(tree);
 
-    // respond when the user chooses a class
+    //  respond when the user chooses a class
     tree.addTreeSelectionListener(new TreeSelectionListener() {
+
       @Override
       public void valueChanged(TreeSelectionEvent e) {
         GOETreeNode node = (GOETreeNode) tree.getLastSelectedPathComponent();
@@ -1701,10 +1736,30 @@ public class GenericObjectEditor implements PropertyEditor, CustomPanelSupplier 
 
         if (node.isLeaf()) {
           classSelected(getClassnameFromPath(tree.getSelectionPath()));
+        }
+      }
+    });
+
+    MouseListener ml = new MouseAdapter() {
+      public void mousePressed(MouseEvent e) {
+        if(tree.getRowForLocation(e.getX(), e.getY()) != -1) {
+          if(e.getClickCount() == 1) {
+            popup.setVisible(false);
+          }
+        }
+      }
+    };
+    tree.addMouseListener(ml);
+
+    tree.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), "enter_action");
+    tree.getActionMap().put("enter_action", new AbstractAction() {
+      public void actionPerformed(ActionEvent e) {
+        if (((GOETreeNode)tree.getLastSelectedPathComponent()).isLeaf()) {
           popup.setVisible(false);
         }
       }
     });
+
 
     return popup;
   }
@@ -1791,7 +1846,8 @@ public class GenericObjectEditor implements PropertyEditor, CustomPanelSupplier 
         if (hpp.isLeafReached() && m_ShowGlobalInfoToolTip) {
           String algName = hpp.fullValue();
           try {
-            Object alg = Class.forName(algName).newInstance();
+            // Object alg = Class.forName(algName).newInstance();
+            Object alg = WekaPackageClassLoaderManager.forName(algName).newInstance();
             String toolTip = Utils.getGlobalInfo(alg, true);
             if (toolTip != null) {
               child.setToolTipText(toolTip);
@@ -1820,7 +1876,8 @@ public class GenericObjectEditor implements PropertyEditor, CustomPanelSupplier 
         return;
       }
 
-      setValue(Class.forName(className).newInstance());
+      //setValue(Class.forName(className).newInstance());
+      setValue(WekaPackageClassLoaderManager.forName(className).newInstance());
       // m_ObjectPropertyPanel.showPropertyDialog();
       if (m_EditorComponent != null) {
         m_EditorComponent.updateChildPropertySheet();
@@ -1883,25 +1940,6 @@ public class GenericObjectEditor implements PropertyEditor, CustomPanelSupplier 
   }
 
   /**
-   * Returns the available classnames for a certain property in the props file.
-   * 
-   * @param property the property to get the classnames for
-   * @return the classnames
-   */
-  public static Vector<String> getClassnames(String property) {
-    Vector<String> result;
-    Set<String> r = PluginManager.getPluginNamesOfType(property);
-
-    result = new Vector<String>();
-    if (r != null) {
-      result.addAll(r);
-    }
-    Collections.sort(result, new ClassDiscovery.StringCompare());
-
-    return result;
-  }
-
-  /**
    * Returns the history of the used setups.
    * 
    * @return the history
@@ -1923,9 +1961,11 @@ public class GenericObjectEditor implements PropertyEditor, CustomPanelSupplier 
       ce.setClassType(weka.classifiers.Classifier.class);
       Object initial = new weka.classifiers.rules.ZeroR();
       if (args.length > 0) {
-        ce.setClassType(Class.forName(args[0]));
+        //ce.setClassType(Class.forName(args[0]));
+        ce.setClassType(WekaPackageClassLoaderManager.forName(args[0]));
         if (args.length > 1) {
-          initial = Class.forName(args[1]).newInstance();
+          //initial = Class.forName(args[1]).newInstance();
+          initial = WekaPackageClassLoaderManager.forName(args[1]).newInstance();
           ce.setValue(initial);
         } else {
           ce.setDefaultValue();

@@ -19,16 +19,16 @@
 
 package weka.core;
 
+import junit.framework.Test;
+import junit.framework.TestCase;
+import junit.framework.TestSuite;
+import weka.gui.GenericPropertiesCreator;
+
 import java.lang.reflect.Method;
 import java.util.Enumeration;
 import java.util.Properties;
 import java.util.StringTokenizer;
 import java.util.Vector;
-
-import junit.framework.Test;
-import junit.framework.TestCase;
-import junit.framework.TestSuite;
-import weka.gui.GenericPropertiesCreator;
 
 /**
  * Tests OptionHandlers. Run from the command line with:
@@ -36,7 +36,7 @@ import weka.gui.GenericPropertiesCreator;
  * java weka.core.OptionHandlerTest
  * 
  * @author FracPete (fracpete at waikato dot ac dot nz)
- * @version $Revision: 10160 $
+ * @version $Revision: 14293 $
  */
 public class OptionHandlersTest extends TestCase {
 
@@ -241,7 +241,7 @@ public class OptionHandlersTest extends TestCase {
           // does class implement OptionHandler?
           try {
             Class<?> cls = Class.forName(classname);
-            if (!ClassDiscovery.hasInterface(OptionHandler.class, cls)) {
+            if (!InheritanceUtils.hasInterface(OptionHandler.class, cls)) {
               continue;
             }
           } catch (Exception e) {

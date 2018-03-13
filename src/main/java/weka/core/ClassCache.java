@@ -31,6 +31,7 @@ import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
+import java.util.Set;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -40,7 +41,7 @@ import java.util.jar.Manifest;
  * A singleton that stores all classes on the classpath.
  * 
  * @author fracpete (fracpete at waikato dot ac dot nz)
- * @version $Revision: 11597 $
+ * @version $Revision: 13476 $
  */
 public class ClassCache implements RevisionHandler {
 
@@ -48,7 +49,7 @@ public class ClassCache implements RevisionHandler {
    * For filtering classes.
    * 
    * @author fracpete (fracpete at waikato dot ac dot nz)
-   * @version $Revision: 11597 $
+   * @version $Revision: 13476 $
    */
   public static class ClassFileFilter implements FileFilter {
 
@@ -68,7 +69,7 @@ public class ClassCache implements RevisionHandler {
    * For filtering classes.
    * 
    * @author fracpete (fracpete at waikato dot ac dot nz)
-   * @version $Revision: 11597 $
+   * @version $Revision: 13476 $
    */
   public static class DirectoryFilter implements FileFilter {
 
@@ -108,7 +109,7 @@ public class ClassCache implements RevisionHandler {
    */
   public ClassCache() {
     super();
-    initialize();
+    initializeNew();
   }
 
   /**
@@ -117,7 +118,7 @@ public class ClassCache implements RevisionHandler {
    * @param classname the classname to process
    * @return the processed classname
    */
-  protected String cleanUp(String classname) {
+  public static String cleanUp(String classname) {
     String result;
 
     result = classname;
@@ -141,7 +142,7 @@ public class ClassCache implements RevisionHandler {
    * @param classname the classname to extract the package from
    * @return the package name
    */
-  protected String extractPackage(String classname) {
+  public static String extractPackage(String classname) {
     if (classname.indexOf(".") > -1) {
       return classname.substring(0, classname.lastIndexOf("."));
     } else {
@@ -377,6 +378,27 @@ public class ClassCache implements RevisionHandler {
     }
   }
 
+  protected void initializeNew() {
+    m_Cache = new Hashtable<String, HashSet<String>>();
+    WekaPackageClassLoaderManager wcl = WekaPackageClassLoaderManager.getWekaPackageClassLoaderManager();
+
+    // parent classloader entries...
+    URL[] sysOrWekaCP = wcl.getWekaClassloaderClasspathEntries();
+    for (URL url : sysOrWekaCP) {
+      String part = url.toString();
+      if (VERBOSE) {
+        System.out.println("Classpath-part: " + part);
+      }
+      initFromClasspathPart(part);
+    }
+
+    // top-level package jar file class entries
+    Set<String> classes = wcl.getPackageJarFileClasses();
+    for (String cl : classes) {
+      add(cl);
+    }
+  }
+
   /**
    * Find all classes that have the supplied matchText String in their suffix.
    * 
@@ -416,7 +438,7 @@ public class ClassCache implements RevisionHandler {
    */
   @Override
   public String getRevision() {
-    return RevisionUtils.extract("$Revision: 11597 $");
+    return RevisionUtils.extract("$Revision: 13476 $");
   }
 
   /**

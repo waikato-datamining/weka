@@ -21,10 +21,7 @@
 
 package weka.gui.experiment;
 
-import weka.core.Attribute;
-import weka.core.Instance;
-import weka.core.Instances;
-import weka.core.Range;
+import weka.core.*;
 import weka.core.converters.CSVLoader;
 import weka.experiment.CSVResultListener;
 import weka.experiment.DatabaseResultListener;
@@ -36,7 +33,6 @@ import weka.experiment.ResultMatrixPlainText;
 import weka.experiment.Tester;
 import weka.gui.DatabaseConnectionDialog;
 import weka.gui.ExtensionFileFilter;
-import weka.gui.GenericObjectEditor;
 import weka.gui.ListSelectorDialog;
 import weka.gui.Perspective;
 import weka.gui.PropertyDialog;
@@ -63,15 +59,7 @@ import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
-import java.awt.BorderLayout;
-import java.awt.Dimension;
-import java.awt.Font;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.GridLayout;
-import java.awt.Image;
-import java.awt.Insets;
-import java.awt.Toolkit;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.WindowAdapter;
@@ -82,6 +70,7 @@ import java.io.FileReader;
 import java.io.Reader;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
 import java.util.StringTokenizer;
 import java.util.Vector;
 
@@ -89,7 +78,7 @@ import java.util.Vector;
  * This panel controls simple analysis of experimental results.
  * 
  * @author Len Trigg (trigg@cs.waikato.ac.nz)
- * @version $Revision: 12396 $
+ * @version $Revision: 14494 $
  */
 public class ResultsPanel extends JPanel {
 
@@ -286,8 +275,8 @@ public class ResultsPanel extends JPanel {
    */
   public ResultsPanel() {
 
-    Vector<String> classes =
-      GenericObjectEditor.getClassnames(Tester.class.getName());
+    List<String> classes =
+      PluginManager.getPluginNamesOfTypeList(Tester.class.getName());
 
     // set names and classes
     m_Testers = new Vector<Class<?>>();
@@ -830,7 +819,8 @@ public class ResultsPanel extends JPanel {
        */
 
       DatabaseConnectionDialog dbd =
-        new DatabaseConnectionDialog(null, dbaseURL, username);
+        new DatabaseConnectionDialog((Frame)SwingUtilities.getWindowAncestor(ResultsPanel.this), dbaseURL, username);
+      dbd.setLocationRelativeTo(SwingUtilities.getWindowAncestor(ResultsPanel.this));
       dbd.setVisible(true);
 
       // if (dbaseURL == null) {
@@ -874,7 +864,7 @@ public class ResultsPanel extends JPanel {
       int result;
       // display dialog only if there's not just one result!
       if (jl.getModel().getSize() != 1) {
-        ListSelectorDialog jd = new ListSelectorDialog(null, jl);
+        ListSelectorDialog jd = new ListSelectorDialog(SwingUtilities.getWindowAncestor(this), jl);
         result = jd.showDialog();
       } else {
         result = ListSelectorDialog.APPROVE_OPTION;
@@ -1259,7 +1249,7 @@ public class ResultsPanel extends JPanel {
 
   public void setResultKeyFromDialog() {
 
-    ListSelectorDialog jd = new ListSelectorDialog(null, m_ResultKeyList);
+    ListSelectorDialog jd = new ListSelectorDialog(SwingUtilities.getWindowAncestor(this), m_ResultKeyList);
 
     // Open the dialog
     int result = jd.showDialog();
@@ -1287,7 +1277,7 @@ public class ResultsPanel extends JPanel {
 
   public void setDatasetKeyFromDialog() {
 
-    ListSelectorDialog jd = new ListSelectorDialog(null, m_DatasetKeyList);
+    ListSelectorDialog jd = new ListSelectorDialog(SwingUtilities.getWindowAncestor(this), m_DatasetKeyList);
 
     // Open the dialog
     int result = jd.showDialog();
@@ -1333,14 +1323,14 @@ public class ResultsPanel extends JPanel {
   }
 
   public void setTestBaseFromDialog() {
-    ListSelectorDialog jd = new ListSelectorDialog(null, m_TestsList);
+    ListSelectorDialog jd = new ListSelectorDialog(SwingUtilities.getWindowAncestor(this), m_TestsList);
 
     // Open the dialog
     jd.showDialog();
   }
 
   public void setDisplayedFromDialog() {
-    ListSelectorDialog jd = new ListSelectorDialog(null, m_DisplayedList);
+    ListSelectorDialog jd = new ListSelectorDialog(SwingUtilities.getWindowAncestor(this), m_DisplayedList);
 
     // Open the dialog
     jd.showDialog();
@@ -1423,7 +1413,7 @@ public class ResultsPanel extends JPanel {
         Explorer exp = new Explorer();
         exp.getPreprocessPanel().setInstances(m_Instances);
 
-        final JFrame jf = new JFrame("Weka Explorer");
+        final JFrame jf = Utils.getWekaJFrame("Weka Explorer", this);
         jf.getContentPane().setLayout(new BorderLayout());
         jf.getContentPane().add(exp, BorderLayout.CENTER);
         jf.addWindowListener(new WindowAdapter() {
@@ -1433,13 +1423,9 @@ public class ResultsPanel extends JPanel {
           }
         });
         jf.pack();
-        jf.setSize(800, 600);
+        jf.setSize(1024, 768);
+        jf.setLocationRelativeTo(SwingUtilities.getWindowAncestor(this));
         jf.setVisible(true);
-        Image icon =
-          Toolkit.getDefaultToolkit().getImage(
-            exp.getClass().getClassLoader()
-              .getResource("weka/gui/weka_icon_new_48.png"));
-        jf.setIconImage(icon);
       } else {
         m_mainPerspective.setInstances(m_Instances);
         m_mainPerspective.getMainApplication().getPerspectiveManager()

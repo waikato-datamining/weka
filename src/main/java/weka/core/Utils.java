@@ -21,27 +21,23 @@
 
 package weka.core;
 
-import weka.Run;
-import weka.gui.PropertySheetPanel;
-
+import javax.swing.*;
+import java.awt.*;
 import java.beans.BeanInfo;
 import java.beans.Introspector;
 import java.beans.MethodDescriptor;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.math.RoundingMode;
-import java.net.URL;
 import java.text.BreakIterator;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
-import java.util.Enumeration;
-import java.util.List;
+import java.text.ParseException;
 import java.util.Properties;
 import java.util.Random;
 import java.util.Vector;
@@ -53,7 +49,7 @@ import java.util.Vector;
  * @author Yong Wang
  * @author Len Trigg
  * @author Julien Prados
- * @version $Revision: 12251 $
+ * @version $Revision: 14605 $
  */
 public final class Utils implements RevisionHandler {
 
@@ -68,22 +64,38 @@ public final class Utils implements RevisionHandler {
   public static double SMALL = 1e-6;
 
   /** Decimal format */
-  private static final ThreadLocal<DecimalFormat> DF = new ThreadLocal<DecimalFormat>() {
+  private static final ThreadLocal<DecimalFormat> DF =
+    new ThreadLocal<DecimalFormat>() {
 
-    @Override
-    protected DecimalFormat initialValue() {
+      @Override
+      protected DecimalFormat initialValue() {
 
-      DecimalFormat df = new DecimalFormat();
-      DecimalFormatSymbols dfs = df.getDecimalFormatSymbols();
-      dfs.setDecimalSeparator('.');
-      dfs.setNaN("NaN");
-      dfs.setInfinity("Infinity");
-      df.setGroupingUsed(false);
-      df.setRoundingMode(RoundingMode.HALF_UP);
-      df.setDecimalFormatSymbols(dfs);
-      return df;
-    }
-  };
+        DecimalFormat df = new DecimalFormat();
+        DecimalFormatSymbols dfs = df.getDecimalFormatSymbols();
+        dfs.setDecimalSeparator('.');
+        dfs.setNaN("NaN");
+        dfs.setInfinity("Infinity");
+        df.setGroupingUsed(false);
+        df.setRoundingMode(RoundingMode.HALF_UP);
+        df.setDecimalFormatSymbols(dfs);
+        return df;
+      }
+    };
+
+  /**
+   * Turns a given date string into Java's internal representation (milliseconds
+   * from 1 January 1970).
+   *
+   * @param dateString the string representing the date
+   * @param dateFormat the date format as a string
+   *
+   * @return milliseconds since 1 January 1970 (as a double converted from long)
+   */
+  public static double dateToMillis(String dateString, String dateFormat)
+    throws ParseException {
+    return new java.text.SimpleDateFormat(dateFormat).parse(dateString)
+      .getTime();
+  }
 
   /**
    * Tests if the given value codes "missing".
@@ -116,7 +128,29 @@ public final class Utils implements RevisionHandler {
   public static <T> T cast(Object x) {
     return (T) x;
   }
-  
+
+  /**
+   * Reads properties that inherit from three locations. Properties are first
+   * defined in the system resource location (i.e. in the CLASSPATH). These
+   * default properties must exist. Properties optionally defined in the user
+   * properties location (WekaPackageManager.PROPERTIES_DIR) override default
+   * settings. Properties defined in the current directory (optional) override
+   * all these settings.
+   *
+   * @param resourceName the location of the resource that should be loaded.
+   *          e.g.: "weka/core/Utils.props". (The use of hardcoded forward
+   *          slashes here is OK - see jdk1.1/docs/guide/misc/resources.html)
+   *          This routine will also look for the file (in this case)
+   *          "Utils.props" in the users home directory and the current
+   *          directory.
+   * @return the Properties
+   * @exception Exception if no default properties are defined, or if an error
+   *              occurs reading the properties files.
+   */
+  public static Properties readProperties(String resourceName) throws Exception {
+    return ResourceUtils.readProperties(resourceName);
+  }
+
   /**
    * Reads properties that inherit from three locations. Properties are first
    * defined in the system resource location (i.e. in the CLASSPATH). These
@@ -131,72 +165,15 @@ public final class Utils implements RevisionHandler {
    *          This routine will also look for the file (in this case)
    *          "Utils.props" in the users home directory and the current
    *          directory.
+   * @param loader the class loader to use when loading properties
    * @return the Properties
    * @exception Exception if no default properties are defined, or if an error
    *              occurs reading the properties files.
    */
-  public static Properties readProperties(String resourceName) throws Exception {
+  public static Properties readProperties(String resourceName,
+    ClassLoader loader) throws Exception {
 
-    Properties defaultProps = new Properties();
-    try {
-      // Apparently hardcoded slashes are OK here
-      // jdk1.1/docs/guide/misc/resources.html
-      Utils utils = new Utils();
-      Enumeration<URL> urls = utils.getClass().getClassLoader()
-        .getResources(resourceName);
-      boolean first = true;
-      while (urls.hasMoreElements()) {
-        URL url = urls.nextElement();
-        if (first) {
-          defaultProps.load(url.openStream());
-          first = false;
-        } else {
-          Properties props = new Properties(defaultProps);
-          props.load(url.openStream());
-          defaultProps = props;
-        }
-      }
-    } catch (Exception ex) {
-      System.err.println("Warning, unable to load properties file(s) from "
-        + "system resource (Utils.java): " + resourceName);
-    }
-
-    // Hardcoded slash is OK here
-    // eg: see jdk1.1/docs/guide/misc/resources.html
-    int slInd = resourceName.lastIndexOf('/');
-    if (slInd != -1) {
-      resourceName = resourceName.substring(slInd + 1);
-    }
-
-    // Allow a properties file in the WekaPackageManager.PROPERTIES_DIR to
-    // override
-    Properties userProps = new Properties(defaultProps);
-    if (!WekaPackageManager.PROPERTIES_DIR.exists()) {
-      WekaPackageManager.PROPERTIES_DIR.mkdir();
-    }
-    File propFile = new File(WekaPackageManager.PROPERTIES_DIR.toString()
-      + File.separator + resourceName);
-
-    if (propFile.exists()) {
-      try {
-        userProps.load(new FileInputStream(propFile));
-      } catch (Exception ex) {
-        throw new Exception("Problem reading user properties: " + propFile);
-      }
-    }
-
-    // Allow a properties file in the current directory to override
-    Properties localProps = new Properties(userProps);
-    propFile = new File(resourceName);
-    if (propFile.exists()) {
-      try {
-        localProps.load(new FileInputStream(propFile));
-      } catch (Exception ex) {
-        throw new Exception("Problem reading local properties: " + propFile);
-      }
-    }
-
-    return new EnvironmentProperties(localProps);
+    return ResourceUtils.readProperties(resourceName, loader);
   }
 
   /**
@@ -300,7 +277,7 @@ public final class Utils implements RevisionHandler {
    */
   public static String padRightAndAllowOverflow(String inString, int length) {
 
-	  return String.format("%1$-" + length + "s", inString);
+    return String.format("%1$-" + length + "s", inString);
   }
 
   /**
@@ -741,8 +718,8 @@ public final class Utils implements RevisionHandler {
 
     // replace each of the following characters with the backquoted version
     char charsFind[] = { '\\', '\'', '\t', '\n', '\r', '"', '%', '\u001E' };
-    String charsReplace[] = { "\\\\", "\\'", "\\t", "\\n", "\\r", "\\\"",
-      "\\%", "\\u001E" };
+    String charsReplace[] =
+      { "\\\\", "\\'", "\\t", "\\n", "\\r", "\\\"", "\\%", "\\u001E" };
     for (int i = 0; i < charsFind.length; i++) {
       if (string.indexOf(charsFind[i]) != -1) {
         newStringBuffer = new StringBuffer();
@@ -891,8 +868,8 @@ public final class Utils implements RevisionHandler {
     StringBuffer newStringBuffer;
 
     // replace each of the following characters with the backquoted version
-    String charsFind[] = { "\\\\", "\\'", "\\t", "\\n", "\\r", "\\\"", "\\%",
-      "\\u001E" };
+    String charsFind[] =
+      { "\\\\", "\\'", "\\t", "\\n", "\\r", "\\\"", "\\%", "\\u001E" };
     char charsReplace[] = { '\\', '\'', '\t', '\n', '\r', '"', '%', '\u001E' };
     int pos[] = new int[charsFind.length];
     int curPos;
@@ -1019,7 +996,8 @@ public final class Utils implements RevisionHandler {
       }
       boolean escape = false;
       for (int n = 0; n < element.length(); n++) {
-        if (Character.isWhitespace(element.charAt(n))) {
+        if (Character.isWhitespace(element.charAt(n))
+          || element.charAt(n) == '"' || element.charAt(n) == '\'') {
           escape = true;
           break;
         }
@@ -1055,7 +1033,8 @@ public final class Utils implements RevisionHandler {
    * @param options an array of options suitable for passing to setOptions. May
    *          be null. Any options accepted by the object will be removed from
    *          the array.
-   * @return the newly created object, ready for use.
+   * @return the newly created object, ready for use (if it is an array, it will
+   *         have size zero).
    * @exception Exception if the class name is invalid, or if the class is not
    *              assignable to the desired class type, or the options supplied
    *              are not acceptable to the object
@@ -1063,89 +1042,32 @@ public final class Utils implements RevisionHandler {
   public static Object forName(Class<?> classType, String className,
     String[] options) throws Exception {
 
-    if (System.getProperty("weka.test.maventest", "").equalsIgnoreCase("true")) {
-      return forNameNoSchemeMatch(classType, className, options);
-    }
-
-    List<String> matches = Run.findSchemeMatch(classType, className, false,
-      true);
-    if (matches.size() == 0) {
-      throw new Exception("Can't find class called: " + className);
-    }
-
-    if (matches.size() > 1) {
-      StringBuffer sb = new StringBuffer("More than one possibility matched '"
-        + className + "':\n");
-      for (String s : matches) {
-        sb.append("  " + s + '\n');
-      }
-      throw new Exception(sb.toString());
-    }
-
-    className = matches.get(0);
-
-    Class<?> c = null;
-    try {
-      c = Class.forName(className);
-    } catch (Exception ex) {
-      throw new Exception("Can't find class called: " + className);
-    }
-
-    Object o = c.newInstance();
-    if ((o instanceof OptionHandler) && (options != null)) {
-      ((OptionHandler) o).setOptions(options);
-      Utils.checkForRemainingOptions(options);
-    }
-    return o;
+    return ResourceUtils.forName(classType, className, options);
   }
 
   /**
-   * Creates a new instance of an object given it's class name and (optional)
-   * arguments to pass to it's setOptions method. If the object implements
-   * OptionHandler and the options parameter is non-null, the object will have
-   * it's options set. Example use:
-   * <p>
-   * 
-   * <code> <pre>
-   * String classifierName = Utils.getOption('W', options);
-   * Classifier c = (Classifier)Utils.forName(Classifier.class,
-   *                                          classifierName,
-   *                                          options);
-   * setClassifier(c);
-   * </pre></code>
-   * 
-   * @param classType the class that the instantiated object should be
-   *          assignable to -- an exception is thrown if this is not the case
-   * @param className the fully qualified class name of the object
-   * @param options an array of options suitable for passing to setOptions. May
-   *          be null. Any options accepted by the object will be removed from
-   *          the array.
-   * @return the newly created object, ready for use.
-   * @exception Exception if the class name is invalid, or if the class is not
-   *              assignable to the desired class type, or the options supplied
-   *              are not acceptable to the object
+   * Returns a JFrame with the given title. The JFrame will be placed relative
+   * to the ancestor window of the given component (or relative to the given component itself, if it is a window),
+   * and will receive the icon image from that window if the window is a frame.
+   *
+   * @param title the title of the window
+   * @param component the component for which the ancestor window is found
+   * @return the JFrame
    */
-  @SuppressWarnings("unchecked")
-  protected static Object forNameNoSchemeMatch(Class classType,
-    String className,
-    String[] options) throws Exception {
-
-    Class c = null;
-    try {
-      c = Class.forName(className);
-    } catch (Exception ex) {
-      throw new Exception("Can't find class called: " + className);
+  public static JFrame getWekaJFrame(String title, Component component) {
+    JFrame jf = new JFrame(title);
+    Window windowAncestor = null;
+    if (component != null) {
+      if (component instanceof Window) {
+        windowAncestor = (Window)component;
+      } else {
+        windowAncestor = SwingUtilities.getWindowAncestor(component);
+      }
+      if (windowAncestor instanceof Frame) {
+        jf.setIconImage(((Frame) windowAncestor).getIconImage());
+      }
     }
-    if (classType != null && !classType.isAssignableFrom(c)) {
-      throw new Exception(classType.getName() + " is not assignable from "
-        + className);
-    }
-    Object o = c.newInstance();
-    if ((o instanceof OptionHandler) && (options != null)) {
-      ((OptionHandler) o).setOptions(options);
-      Utils.checkForRemainingOptions(options);
-    }
-    return o;
+    return jf;
   }
 
   /**
@@ -1464,8 +1386,8 @@ public final class Utils implements RevisionHandler {
    */
   public static/* @pure@ */int round(double value) {
 
-    int roundedValue = value > 0 ? (int) (value + 0.5) : -(int) (Math
-      .abs(value) + 0.5);
+    int roundedValue =
+      value > 0 ? (int) (value + 0.5) : -(int) (Math.abs(value) + 0.5);
 
     return roundedValue;
   }
@@ -1606,7 +1528,7 @@ public final class Utils implements RevisionHandler {
    * @return an array of integers with the positions in the sorted array.
    */
   public static/* @pure@ */int[] sortWithNoMissingValues(
-    /* @non_null@ */double[] array) {
+  /* @non_null@ */double[] array) {
 
     int[] index = initialIndex(array.length);
     if (array.length > 1) {
@@ -1678,16 +1600,16 @@ public final class Utils implements RevisionHandler {
 
     if (vector.length <= 1)
       return Double.NaN;
-    
+
     double mean = 0;
     double var = 0;
-    
+
     for (int i = 0; i < vector.length; i++) {
       double delta = vector[i] - mean;
-      mean += delta/(i + 1);
-      var += (vector[i] - mean)*delta;
+      mean += delta / (i + 1);
+      var += (vector[i] - mean) * delta;
     }
-    
+
     var /= vector.length - 1;
 
     // We don't like negative variance
@@ -2034,8 +1956,8 @@ public final class Utils implements RevisionHandler {
   protected static File createRelativePath(File absolute) throws Exception {
     File userDir = new File(System.getProperty("user.dir"));
     String userPath = userDir.getAbsolutePath() + File.separator;
-    String targetPath = (new File(absolute.getParent())).getPath()
-      + File.separator;
+    String targetPath =
+      (new File(absolute.getParent())).getPath() + File.separator;
     String fileName = absolute.getName();
     StringBuffer relativePath = new StringBuffer();
     // relativePath.append("."+File.separator);
@@ -2134,20 +2056,20 @@ public final class Utils implements RevisionHandler {
    *         future.
    */
   public static boolean getDontShowDialog(String dialogName) {
-    File wekaHome = WekaPackageManager.WEKA_HOME;
+    File wekaHome = ResourceUtils.getWekaHome();
 
     if (!wekaHome.exists()) {
       return false;
     }
 
-    File dialogSubDir = new File(wekaHome.toString() + File.separator
-      + "systemDialogs");
+    File dialogSubDir =
+      new File(wekaHome.toString() + File.separator + "systemDialogs");
     if (!dialogSubDir.exists()) {
       return false;
     }
 
-    File dialogFile = new File(dialogSubDir.toString() + File.separator
-      + dialogName);
+    File dialogFile =
+      new File(dialogSubDir.toString() + File.separator + dialogName);
 
     return dialogFile.exists();
   }
@@ -2162,22 +2084,22 @@ public final class Utils implements RevisionHandler {
    *           $WEKA_HOME/systemDialogs
    */
   public static void setDontShowDialog(String dialogName) throws Exception {
-    File wekaHome = WekaPackageManager.WEKA_HOME;
+    File wekaHome = ResourceUtils.getWekaHome();
 
     if (!wekaHome.exists()) {
       return;
     }
 
-    File dialogSubDir = new File(wekaHome.toString() + File.separator
-      + "systemDialogs");
+    File dialogSubDir =
+      new File(wekaHome.toString() + File.separator + "systemDialogs");
     if (!dialogSubDir.exists()) {
       if (!dialogSubDir.mkdir()) {
         return;
       }
     }
 
-    File dialogFile = new File(dialogSubDir.toString() + File.separator
-      + dialogName);
+    File dialogFile =
+      new File(dialogSubDir.toString() + File.separator + dialogName);
     dialogFile.createNewFile();
   }
 
@@ -2198,9 +2120,10 @@ public final class Utils implements RevisionHandler {
       return null; // This must be the first time - no file recorded yet.
     }
 
-    File wekaHome = WekaPackageManager.WEKA_HOME;
-    File dialogSubDir = new File(wekaHome.toString() + File.separator
-      + "systemDialogs" + File.separator + dialogName);
+    File wekaHome = ResourceUtils.getWekaHome();
+    File dialogSubDir =
+      new File(wekaHome.toString() + File.separator + "systemDialogs"
+        + File.separator + dialogName);
 
     BufferedReader br = new BufferedReader(new FileReader(dialogSubDir));
     String response = br.readLine();
@@ -2220,22 +2143,22 @@ public final class Utils implements RevisionHandler {
   public static void setDontShowDialogResponse(String dialogName,
     String response) throws Exception {
 
-    File wekaHome = WekaPackageManager.WEKA_HOME;
+    File wekaHome = ResourceUtils.getWekaHome();
 
     if (!wekaHome.exists()) {
       return;
     }
 
-    File dialogSubDir = new File(wekaHome.toString() + File.separator
-      + "systemDialogs");
+    File dialogSubDir =
+      new File(wekaHome.toString() + File.separator + "systemDialogs");
     if (!dialogSubDir.exists()) {
       if (!dialogSubDir.mkdir()) {
         return;
       }
     }
 
-    File dialogFile = new File(dialogSubDir.toString() + File.separator
-      + dialogName);
+    File dialogFile =
+      new File(dialogSubDir.toString() + File.separator + dialogName);
     BufferedWriter br = new BufferedWriter(new FileWriter(dialogFile));
     br.write(response + "\n");
     br.flush();
@@ -2367,19 +2290,21 @@ public final class Utils implements RevisionHandler {
         if (!result.toString().endsWith("<br><br>")) {
           result.append("<br>");
         }
-        String caps = PropertySheetPanel.addCapabilities(
-          "<font color=red>CAPABILITIES</font>",
-          ((CapabilitiesHandler) object).getCapabilities());
+        String caps =
+          CapabilitiesUtils.addCapabilities(
+            "<font color=red>CAPABILITIES</font>",
+            ((CapabilitiesHandler) object).getCapabilities());
         caps = Utils.lineWrap(caps, lineWidth).replace("\n", "<br>");
         result.append(caps);
       }
 
       if (object instanceof MultiInstanceCapabilitiesHandler) {
         result.append("<br>");
-        String caps = PropertySheetPanel.addCapabilities(
-          "<font color=red>MI CAPABILITIES</font>",
-          ((MultiInstanceCapabilitiesHandler) object)
-            .getMultiInstanceCapabilities());
+        String caps =
+          CapabilitiesUtils.addCapabilities(
+            "<font color=red>MI CAPABILITIES</font>",
+            ((MultiInstanceCapabilitiesHandler) object)
+              .getMultiInstanceCapabilities());
         caps = Utils.lineWrap(caps, lineWidth).replace("\n", "<br>");
         result.append(caps);
       }
@@ -2433,13 +2358,128 @@ public final class Utils implements RevisionHandler {
   }
 
   /**
+   * Returns a configured Range object given a 1-based range index string (such
+   * as 1-20,35,last) or a comma-separated list of attribute names.
+   * 
+   * @param instanceInfo the header of the instances to configure the range for
+   * @param rangeString a string containing a range of attribute indexes, or a
+   *          comma-separated list of attribute names
+   * @return a Range object configured to cover the supplied rangeString
+   * @throws Exception if a problem occured
+   */
+  public static Range configureRangeFromRangeStringOrAttributeNameList(
+    Instances instanceInfo, String rangeString) throws Exception {
+    Range result = new Range(rangeString);
+
+    try {
+      result.setUpper(instanceInfo.numAttributes() - 1);
+    } catch (IllegalArgumentException e) {
+      // now try as a list of named attributes
+      String[] parts = rangeString.split(",");
+      if (parts.length == 0) {
+        throw new Exception(
+          "Must specify a list of attributes to configure the range object "
+            + "with!");
+      }
+
+      StringBuilder indexList = new StringBuilder();
+      for (String att : parts) {
+        att = att.trim();
+        Attribute a = instanceInfo.attribute(att);
+        if (a == null) {
+          throw new Exception("I can't find the requested attribute '" + att
+            + "' in the supplied instances information.");
+        }
+        indexList.append(a.index() + 1).append(",");
+      }
+      if (indexList.length() > 0) {
+        indexList.setLength(indexList.length() - 1);
+      }
+      result = new Range(indexList.toString());
+      result.setUpper(instanceInfo.numAttributes() - 1);
+    }
+
+    return result;
+  }
+
+  /**
+   * Takes a sample based on the given array of weights based on Walker's method.
+   * Returns an array of the same size that gives the frequency of each item in the sample.
+   * For Walker's method, see pp. 232 of "Stochastic Simulation" by B.D. Ripley (1987).
+   *
+   * @param weights the (positive) weights to be used to determine sample probabilities by normalization
+   * @param random the random number generator to be used
+   *
+   * @return the histogram of items in the sample
+   */
+  public static int[] takeSample(double[] weights, Random random) {
+
+    // Walker's method, see pp. 232 of "Stochastic Simulation" by B.D. Ripley
+    double[] P = new double[weights.length];
+    System.arraycopy(weights, 0, P, 0, weights.length);
+    Utils.normalize(P);
+    double[] Q = new double[weights.length];
+    int[] A = new int[weights.length];
+    int[] W = new int[weights.length];
+    int M = weights.length;
+    int NN = -1;
+    int NP = M;
+    for (int I = 0; I < M; I++) {
+      if (P[I] < 0) {
+        throw new IllegalArgumentException("Weights have to be positive.");
+      }
+      Q[I] = M * P[I];
+      if (Q[I] < 1.0) {
+        W[++NN] = I;
+      } else {
+        W[--NP] = I;
+      }
+    }
+    if (NN > -1 && NP < M) {
+      for (int S = 0; S < M - 1; S++) {
+        int I = W[S];
+        int J = W[NP];
+        A[I] = J;
+        Q[J] += Q[I] - 1.0;
+        if (Q[J] < 1.0) {
+          NP++;
+        }
+        if (NP >= M) {
+          break;
+        }
+      }
+      // A[W[M]] = W[M];
+    }
+
+    for (int I = 0; I < M; I++) {
+      Q[I] += I;
+    }
+
+    int[] result = new int[weights.length];
+
+    for (int i = 0; i < weights.length; i++) {
+      int ALRV;
+      double U = M * random.nextDouble();
+      int I = (int) U;
+      if (U < Q[I]) {
+        ALRV = I;
+      } else {
+        ALRV = A[I];
+      }
+      result[ALRV]++;
+    }
+
+    return result;
+  }
+
+  /**
    * Returns the revision string.
    * 
    * @return the revision
    */
   @Override
   public String getRevision() {
-    return RevisionUtils.extract("$Revision: 12251 $");
+    return RevisionUtils.extract("$Revision: 14605 $");
   }
 
   /**

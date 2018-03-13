@@ -21,37 +21,6 @@
 
 package weka.gui.explorer;
 
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Font;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.GridLayout;
-import java.awt.Point;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.InputEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.beans.PropertyChangeEvent;
-import java.beans.PropertyChangeListener;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Vector;
-
-import javax.swing.BorderFactory;
-import javax.swing.JButton;
-import javax.swing.JCheckBox;
-import javax.swing.JMenu;
-import javax.swing.JMenuItem;
-import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
-import javax.swing.JViewport;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ChangeListener;
-
 import weka.associations.AssociationRules;
 import weka.associations.Associator;
 import weka.associations.FPGrowth;
@@ -63,8 +32,10 @@ import weka.core.Drawable;
 import weka.core.Environment;
 import weka.core.Instances;
 import weka.core.OptionHandler;
+import weka.core.PluginManager;
 import weka.core.Settings;
 import weka.core.Utils;
+import weka.core.WekaPackageClassLoaderManager;
 import weka.gui.AbstractPerspective;
 import weka.gui.GenericObjectEditor;
 import weka.gui.Logger;
@@ -83,12 +54,34 @@ import weka.gui.treevisualizer.TreeVisualizer;
 import weka.gui.visualize.plugins.AssociationRuleVisualizePlugin;
 import weka.gui.visualize.plugins.TreeVisualizePlugin;
 
+import javax.swing.*;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.GridLayout;
+import java.awt.Point;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.InputEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.List;
+import java.util.Vector;
+
 /**
  * This panel allows the user to select, configure, and run a scheme that learns
  * associations.
  * 
  * @author Eibe Frank (eibe@cs.waikato.ac.nz)
- * @version $Revision: 12232 $
+ * @version $Revision: 14493 $
  */
 @PerspectiveInfo(ID = "weka.gui.explorer.associationspanel",
   title = "Associate", toolTipText = "Discover association rules",
@@ -182,8 +175,9 @@ public class AssociationsPanel extends AbstractPerspective implements
           || e.isAltDown()) {
           int index = m_History.getList().locationToIndex(e.getPoint());
           if (index != -1) {
-            String name = m_History.getNameAtIndex(index);
-            historyRightClickPopup(name, e.getX(), e.getY());
+            List<String> selectedEls =
+              (List<String>) m_History.getList().getSelectedValuesList();
+            historyRightClickPopup(selectedEls, e.getX(), e.getY());
           } else {
             historyRightClickPopup(null, e.getX(), e.getY());
           }
@@ -242,9 +236,8 @@ public class AssociationsPanel extends AbstractPerspective implements
     // check for any visualization plugins so that we
     // can add a checkbox for storing graphs or rules
     boolean showStoreOutput =
-      (GenericObjectEditor.getClassnames(
-        AssociationRuleVisualizePlugin.class.getName()).size() > 0 || GenericObjectEditor
-        .getClassnames(TreeVisualizePlugin.class.getName()).size() > 0);
+      (PluginManager.getPluginNamesOfTypeList(AssociationRuleVisualizePlugin.class.getName()).size() > 0 ||
+        PluginManager.getPluginNamesOfTypeList(TreeVisualizePlugin.class.getName()).size() > 0);
 
     // Layout the GUI
     JPanel p1 = new JPanel();
@@ -543,8 +536,7 @@ public class AssociationsPanel extends AbstractPerspective implements
    */
   protected void visualizeTree(String dottyString, String treeName) {
     final javax.swing.JFrame jf =
-      new javax.swing.JFrame("Weka Classifier Tree Visualizer: " + treeName);
-    jf.setSize(500, 400);
+      Utils.getWekaJFrame("Weka Associator Tree Visualizer: " + treeName, this);
     jf.getContentPane().setLayout(new BorderLayout());
     TreeVisualizer tv = new TreeVisualizer(null, dottyString, new PlaceNode2());
     jf.getContentPane().add(tv, BorderLayout.CENTER);
@@ -554,7 +546,9 @@ public class AssociationsPanel extends AbstractPerspective implements
         jf.dispose();
       }
     });
-
+    jf.pack();
+    jf.setSize(800, 600);
+    jf.setLocationRelativeTo(SwingUtilities.getWindowAncestor(this));
     jf.setVisible(true);
     tv.fitToScreen();
   }
@@ -562,22 +556,22 @@ public class AssociationsPanel extends AbstractPerspective implements
   /**
    * Handles constructing a popup menu with visualization options.
    * 
-   * @param name the name of the result history list entry clicked on by the
+   * @param names the names of the result history list entries clicked on by the
    *          user
    * @param x the x coordinate for popping up the menu
    * @param y the y coordinate for popping up the menu
    */
   @SuppressWarnings("unchecked")
-  protected void historyRightClickPopup(String name, int x, int y) {
-    final String selectedName = name;
+  protected void historyRightClickPopup(List<String> names, int x, int y) {
+    final List<String> selectedNames = names;
     JPopupMenu resultListMenu = new JPopupMenu();
 
     JMenuItem visMainBuffer = new JMenuItem("View in main window");
-    if (selectedName != null) {
+    if (selectedNames != null && selectedNames.size() == 1) {
       visMainBuffer.addActionListener(new ActionListener() {
         @Override
         public void actionPerformed(ActionEvent e) {
-          m_History.setSingle(selectedName);
+          m_History.setSingle(selectedNames.get(0));
         }
       });
     } else {
@@ -586,11 +580,11 @@ public class AssociationsPanel extends AbstractPerspective implements
     resultListMenu.add(visMainBuffer);
 
     JMenuItem visSepBuffer = new JMenuItem("View in separate window");
-    if (selectedName != null) {
+    if (selectedNames != null && selectedNames.size() == 1) {
       visSepBuffer.addActionListener(new ActionListener() {
         @Override
         public void actionPerformed(ActionEvent e) {
-          m_History.openFrame(selectedName);
+          m_History.openFrame(selectedNames.get(0));
         }
       });
     } else {
@@ -599,11 +593,11 @@ public class AssociationsPanel extends AbstractPerspective implements
     resultListMenu.add(visSepBuffer);
 
     JMenuItem saveOutput = new JMenuItem("Save result buffer");
-    if (selectedName != null) {
+    if (selectedNames != null && selectedNames.size() == 1) {
       saveOutput.addActionListener(new ActionListener() {
         @Override
         public void actionPerformed(ActionEvent e) {
-          saveBuffer(selectedName);
+          saveBuffer(selectedNames.get(0));
         }
       });
     } else {
@@ -611,12 +605,12 @@ public class AssociationsPanel extends AbstractPerspective implements
     }
     resultListMenu.add(saveOutput);
 
-    JMenuItem deleteOutput = new JMenuItem("Delete result buffer");
-    if (selectedName != null) {
+    JMenuItem deleteOutput = new JMenuItem("Delete result buffer(s)");
+    if (selectedNames != null) {
       deleteOutput.addActionListener(new ActionListener() {
         @Override
         public void actionPerformed(ActionEvent e) {
-          m_History.removeResult(selectedName);
+          m_History.removeResults(selectedNames);
         }
       });
     } else {
@@ -625,8 +619,8 @@ public class AssociationsPanel extends AbstractPerspective implements
     resultListMenu.add(deleteOutput);
 
     Vector<Object> visVect = null;
-    if (selectedName != null) {
-      visVect = (Vector<Object>) m_History.getNamedObject(selectedName);
+    if (selectedNames != null && selectedNames.size() == 1) {
+      visVect = (Vector<Object>) m_History.getNamedObject(selectedNames.get(0));
     }
 
     // check for the associator itself
@@ -661,21 +655,20 @@ public class AssociationsPanel extends AbstractPerspective implements
     if (visVect != null) {
       for (Object o : visVect) {
         if (o instanceof AssociationRules) {
-          Vector<String> pluginsVector =
-            GenericObjectEditor
-              .getClassnames(AssociationRuleVisualizePlugin.class.getName());
+          List<String> pluginsVector =
+            PluginManager.getPluginNamesOfTypeList(AssociationRuleVisualizePlugin.class.getName());
           for (int i = 0; i < pluginsVector.size(); i++) {
-            String className = (pluginsVector.elementAt(i));
+            String className = (pluginsVector.get(i));
             try {
               AssociationRuleVisualizePlugin plugin =
-                (AssociationRuleVisualizePlugin) Class.forName(className)
-                  .newInstance();
+                (AssociationRuleVisualizePlugin) WekaPackageClassLoaderManager.objectForName(className);
+                  //Class.forName(className).newInstance();
               if (plugin == null) {
                 continue;
               }
               availablePlugins = true;
               JMenuItem pluginMenuItem =
-                plugin.getVisualizeMenuItem((AssociationRules) o, selectedName);
+                plugin.getVisualizeMenuItem((AssociationRules) o, selectedNames.get(0));
               if (pluginMenuItem != null) {
                 visPlugins.add(pluginMenuItem);
               }
@@ -684,20 +677,20 @@ public class AssociationsPanel extends AbstractPerspective implements
             }
           }
         } else if (o instanceof String) {
-          Vector<String> pluginsVector =
-            GenericObjectEditor.getClassnames(TreeVisualizePlugin.class
-              .getName());
+          List<String> pluginsVector =
+            PluginManager.getPluginNamesOfTypeList(TreeVisualizePlugin.class.getName());
           for (int i = 0; i < pluginsVector.size(); i++) {
-            String className = (pluginsVector.elementAt(i));
+            String className = (pluginsVector.get(i));
             try {
               TreeVisualizePlugin plugin =
-                (TreeVisualizePlugin) Class.forName(className).newInstance();
+                (TreeVisualizePlugin) WekaPackageClassLoaderManager.objectForName(className);
+                  // Class.forName(className).newInstance();
               if (plugin == null) {
                 continue;
               }
               availablePlugins = true;
               JMenuItem pluginMenuItem =
-                plugin.getVisualizeMenuItem((String) o, selectedName);
+                plugin.getVisualizeMenuItem((String) o, selectedNames.get(0));
               // Version version = new Version();
               if (pluginMenuItem != null) {
                 /*

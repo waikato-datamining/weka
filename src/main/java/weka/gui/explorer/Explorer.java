@@ -21,6 +21,23 @@
 
 package weka.gui.explorer;
 
+import weka.core.Capabilities;
+import weka.core.Copyright;
+import weka.core.Instances;
+import weka.core.Memory;
+import weka.core.PluginManager;
+import weka.core.WekaPackageClassLoaderManager;
+import weka.core.converters.AbstractFileLoader;
+import weka.core.converters.ConverterUtils;
+import weka.gui.LogPanel;
+import weka.gui.Logger;
+import weka.gui.LookAndFeel;
+import weka.gui.WekaTaskMonitor;
+
+import javax.swing.JFrame;
+import javax.swing.JPanel;
+import javax.swing.JTabbedPane;
+import javax.swing.event.ChangeEvent;
 import java.awt.BorderLayout;
 import java.awt.Image;
 import java.awt.Toolkit;
@@ -36,32 +53,12 @@ import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Vector;
 
-import javax.swing.JFrame;
-import javax.swing.JPanel;
-import javax.swing.JTabbedPane;
-import javax.swing.event.ChangeEvent;
-
-import weka.core.Capabilities;
-import weka.core.Copyright;
-import weka.core.Instances;
-import weka.core.Memory;
-import weka.core.Settings;
-import weka.core.converters.AbstractFileLoader;
-import weka.core.converters.ConverterUtils;
-import weka.gui.AbstractGUIApplication;
-import weka.gui.LogPanel;
-import weka.gui.Logger;
-import weka.gui.LookAndFeel;
-import weka.gui.WekaTaskMonitor;
-import weka.core.PluginManager;
-import weka.gui.Perspective;
-
 /**
  * The main class for the Weka explorer. Lets the user create, open, save,
  * configure, datasets, and perform ML analysis.
  * 
  * @author Len Trigg (trigg@cs.waikato.ac.nz)
- * @version $Revision: 12409 $
+ * @version $Revision: 13476 $
  */
 public class Explorer extends JPanel {
 
@@ -72,7 +69,7 @@ public class Explorer extends JPanel {
    * Interface for classes that listen for filter changes.
    * 
    * @author FracPete (fracpete at waikato dot ac dot nz)
-   * @version $Revision: 12409 $
+   * @version $Revision: 13476 $
    */
   public static interface CapabilitiesFilterChangeListener extends
     EventListener {
@@ -89,7 +86,7 @@ public class Explorer extends JPanel {
    * This event can be fired in case the capabilities filter got changed
    * 
    * @author FracPete (fracpete at waikato dot ac dot nz)
-   * @version $Revision: 12409 $
+   * @version $Revision: 13476 $
    */
   public static class CapabilitiesFilterChangeEvent extends ChangeEvent {
 
@@ -124,7 +121,7 @@ public class Explorer extends JPanel {
    * A common interface for panels to be displayed in the Explorer
    * 
    * @author FracPete (fracpete at waikato dot ac dot nz)
-   * @version $Revision: 12409 $
+   * @version $Revision: 13476 $
    */
   public static interface ExplorerPanel {
 
@@ -169,7 +166,7 @@ public class Explorer extends JPanel {
    * A common interface for panels in the explorer that can handle logs
    * 
    * @author FracPete (fracpete at waikato dot ac dot nz)
-   * @version $Revision: 12409 $
+   * @version $Revision: 13476 $
    */
   public static interface LogHandler {
 
@@ -234,7 +231,7 @@ public class Explorer extends JPanel {
         }
 
         // setup panel
-        ExplorerPanel panel = (ExplorerPanel) Class.forName(classname)
+        ExplorerPanel panel = (ExplorerPanel) WekaPackageClassLoaderManager.forName(classname)
           .newInstance();
         panel.setExplorer(this);
         m_Panels.add(panel);

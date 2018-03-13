@@ -20,6 +20,9 @@
 
 package weka.core;
 
+import weka.core.Capabilities.Capability;
+import weka.gui.GenericPropertiesCreator;
+
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.util.Enumeration;
@@ -27,9 +30,6 @@ import java.util.Iterator;
 import java.util.Properties;
 import java.util.StringTokenizer;
 import java.util.Vector;
-
-import weka.core.Capabilities.Capability;
-import weka.gui.GenericPropertiesCreator;
 
 /**
  * Locates all classes with certain capabilities. One should keep in mind, that
@@ -192,14 +192,14 @@ import weka.gui.GenericPropertiesCreator;
  * <!-- options-end -->
  * 
  * @author fracpete (fracpete at waikato dot ac dot nz)
- * @version $Revision: 11004 $
+ * @version $Revision: 14374 $
  * @see Capabilities
  * @see Capabilities.Capability
  * @see GenericPropertiesCreator
  */
 public class FindWithCapabilities implements OptionHandler,
                                              CapabilitiesHandler, 
-                                             RevisionHandler {
+                                             RevisionHandler, CommandlineRunnable {
 
   /** the capabilities to look for. */
   protected Capabilities m_Capabilities = new Capabilities(this);
@@ -387,7 +387,7 @@ public class FindWithCapabilities implements OptionHandler,
     tmpStr = Utils.getOption('W', options);
     if (tmpStr.length() != 0) {
       cls = Class.forName(tmpStr);
-      if (ClassDiscovery.hasInterface(CapabilitiesHandler.class, cls)) {
+      if (InheritanceUtils.hasInterface(CapabilitiesHandler.class, cls)) {
         initialized = true;
         handler = (CapabilitiesHandler) cls.newInstance();
         if (handler instanceof OptionHandler) {
@@ -953,8 +953,10 @@ public class FindWithCapabilities implements OptionHandler,
       m_Packages.toArray(new String[m_Packages.size()]));
     for (i = 0; i < list.size(); i++) {
       try {
-        cls = Class.forName(list.get(i));
-        obj = cls.newInstance();
+        // cls = Class.forName(list.get(i));
+        cls = WekaPackageClassLoaderManager.forName(list.get(i));
+        // obj = cls.newInstance();
+        obj = WekaPackageClassLoaderManager.objectForName(list.get(i));
 
         // exclude itself
         if (cls == this.getClass()) {
@@ -1021,7 +1023,7 @@ public class FindWithCapabilities implements OptionHandler,
    */
   @Override
   public String getRevision() {
-    return RevisionUtils.extract("$Revision: 11004 $");
+    return RevisionUtils.extract("$Revision: 14374 $");
   }
 
   /**
@@ -1030,6 +1032,19 @@ public class FindWithCapabilities implements OptionHandler,
    * @param args the commandline parameters
    */
   public static void main(String[] args) {
+    try {
+      FindWithCapabilities find = new FindWithCapabilities();
+      find.run(find, args);
+    } catch (Exception ex) {
+      ex.printStackTrace();
+    }
+  }
+
+  @Override public void preExecution() throws Exception {
+
+  }
+
+  @Override public void run(Object toRun, String[] args) throws Exception {
     FindWithCapabilities find;
     Vector<String> list;
     String result;
@@ -1037,6 +1052,10 @@ public class FindWithCapabilities implements OptionHandler,
     boolean printMisses;
     Iterator<Capability> iter;
     boolean first;
+
+    // make sure that packages are loaded and the GenericPropertiesCreator
+    // executes to populate the lists correctly
+    weka.gui.GenericObjectEditor.determineClasses();
 
     printMisses = false;
 
@@ -1121,6 +1140,12 @@ public class FindWithCapabilities implements OptionHandler,
       System.out.println();
     } catch (Exception ex) {
       System.err.println(ex.getMessage());
+    } finally {
+      System.exit(0);
     }
+  }
+
+  @Override public void postExecution() throws Exception {
+
   }
 }
