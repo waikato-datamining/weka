@@ -1301,6 +1301,8 @@ public class Capabilities implements Cloneable, Serializable, RevisionHandler {
     for (i = 0; i < data.numInstances(); i++) {
       inst = data.instance(i);
 
+      /*
+       * Not relevant for 3.9.0 code
       if (inst.weight() != 1.0) {
         if (INTERFACE_DEFINED_CAPABILITIES.contains(weightedInstancesHandler) &&
                 !m_InterfaceDefinedCapabilities.contains(weightedInstancesHandler)) {
@@ -1309,6 +1311,7 @@ public class Capabilities implements Cloneable, Serializable, RevisionHandler {
           return false;
         }
       }
+      */
 
       if (m_MissingValuesTest) {
         if (!handles(Capability.MISSING_VALUES)) {
