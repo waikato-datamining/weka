@@ -219,12 +219,15 @@ public class LinearNNSearch
         if(print)
           System.out.println("K(a): "+(heap.size()+heap.noOfKthNearest()));
         distance = m_DistanceFunction.distance(target, m_Instances.instance(i), Double.POSITIVE_INFINITY, m_Stats);
-        if(distance == 0.0 && m_SkipIdentical)
+        if(distance == 0.0 && m_SkipIdentical) {
           if(i<m_Instances.numInstances()-1)
             continue;
           else
             heap.put(i, distance);
-        heap.put(i, distance);
+        }
+        else {
+          heap.put(i, distance);
+        }
         firstkNN++;
       }
       else {
