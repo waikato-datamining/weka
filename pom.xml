@@ -5,7 +5,7 @@
 
   <groupId>nz.ac.waikato.cms.weka</groupId>
   <artifactId>weka-dev</artifactId>
-  <version>3.9.2-fork-0.0.2</version><!-- weka-version -->
+  <version>3.9.2-fork-0.0.3</version><!-- weka-version -->
   <packaging>jar</packaging>
 
   <name>weka-dev</name>
@@ -87,7 +87,7 @@
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-compress</artifactId>
-      <version>1.10</version>
+      <version>1.18</version>
       <optional>true</optional>
     </dependency>
     
