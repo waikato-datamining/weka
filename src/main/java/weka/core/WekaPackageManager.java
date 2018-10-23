@@ -485,10 +485,9 @@ public class WekaPackageManager {
       return;
     }
 
+    String mirrorListURL =
+      "https://www.cs.waikato.ac.nz/ml/weka/packageMetaDataMirror.txt";
     try {
-      String mirrorListURL =
-        "http://www.cs.waikato.ac.nz/ml/weka/packageMetaDataMirror.txt";
-
       URLConnection conn = null;
       URL connURL = new URL(mirrorListURL);
 
@@ -521,6 +520,8 @@ public class WekaPackageManager {
         }
       }
     } catch (Exception ex) {
+      System.err.println("Failed to access package mirror: " + mirrorListURL);
+      ex.printStackTrace();
       log(weka.core.logging.Logger.Level.WARNING,
         "[WekaPackageManager] The repository meta data mirror file seems "
           + "to be unavailable (" + ex.getMessage() + ")");
