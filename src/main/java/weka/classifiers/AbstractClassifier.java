@@ -88,7 +88,7 @@ public abstract class AbstractClassifier implements Classifier, BatchPredictor,
   public static Classifier forName(String classifierName, String[] options)
     throws Exception {
 
-    return ((AbstractClassifier) Utils.forName(Classifier.class, classifierName,
+    return ((Classifier) Utils.forName(Classifier.class, classifierName,
       options));
   }
 
