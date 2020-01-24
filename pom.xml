@@ -5,14 +5,14 @@
 
   <groupId>nz.ac.waikato.cms.weka</groupId>
   <artifactId>weka-dev</artifactId>
-  <version>3.9.4-SNAPSHOT</version><!-- weka-version -->
+  <version>3.9.4-fork-0.0.1</version><!-- weka-version -->
   <packaging>jar</packaging>
 
   <name>weka-dev</name>
   <description>The Waikato Environment for Knowledge Analysis (WEKA), a machine
     learning workbench. This version represents the developer version, the
     "bleeding edge" of development, you could say. New functionality gets added
-    to this version.
+    to this version. ADAMS fork.
   </description>
   <url>http://www.cs.waikato.ac.nz/ml/weka/</url>
   <organization>
@@ -33,6 +33,19 @@
       <name>The WEKA Team</name>
       <email>wekalist@list.waikato.ac.nz</email>
     </developer>
+
+    <developer>
+      <id>fracpete</id>
+      <name>Peter Reutemann</name>
+      <email>fracpete@waikato.ac.nz</email>
+      <url>http://www.cms.waikato.ac.nz/~fracpete/</url>
+      <organization>University of Waikato, CS department</organization>
+      <organizationUrl>http://www.cs.waikato.ac.nz/</organizationUrl>
+      <roles>
+        <role>fork maintainer</role>
+      </roles>
+      <timezone>+12</timezone>
+    </developer>
   </developers>
 
   <mailingLists>
@@ -43,227 +56,6 @@
       <archive>https://list.waikato.ac.nz/hyperkitty/list/wekalist@list.waikato.ac.nz/</archive>
     </mailingList>
   </mailingLists>
-
-  <parent>
-    <groupId>org.sonatype.oss</groupId>
-    <artifactId>oss-parent</artifactId>
-    <version>7</version>
-  </parent>
-
-  <scm>
-    <connection>scm:svn:https://svn.cms.waikato.ac.nz/svn/weka/trunk/weka</connection>
-    <developerConnection>scm:svn:https://svn.cms.waikato.ac.nz/svn/weka/trunk/weka</developerConnection>
-    <url>https://svn.cms.waikato.ac.nz/svn/weka/trunk/weka</url>
-  </scm>
-
-  <profiles>
-    <profile>
-      <id>release-sign-artifacts</id>
-      <activation>
-        <property>
-          <name>performRelease</name>
-          <value>true</value>
-        </property>
-      </activation>
-      <build>
-        <plugins>
-          <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-gpg-plugin</artifactId>
-            <version>1.6</version>
-            <executions>
-              <execution>
-                <id>sign-artifacts</id>
-                <phase>verify</phase>
-                <goals>
-                  <goal>sign</goal>
-                </goals>
-              </execution>
-            </executions>
-          </plugin>
-        </plugins>
-      </build>
-    </profile>
-    <profile>
-      <id>java8-compiler-plugin</id>
-      <activation>
-        <jdk>1.8</jdk>
-      </activation>
-      <build>
-        <pluginManagement>
-          <plugins>
-            <plugin>
-              <groupId>org.apache.maven.plugins</groupId>
-              <artifactId>maven-compiler-plugin</artifactId>
-              <version>3.8.1</version>
-              <configuration>
-                <source>1.8</source>
-                <target>1.8</target>
-              </configuration>
-            </plugin>
-          </plugins>
-        </pluginManagement>
-      </build>
-    </profile>
-
-    <profile>
-      <id>java9andlater-compiler-plugin</id>
-      <activation>
-        <jdk>[9,)</jdk>
-      </activation>
-      <build>
-        <pluginManagement>
-          <plugins>
-            <plugin>
-              <groupId>org.apache.maven.plugins</groupId>
-              <artifactId>maven-compiler-plugin</artifactId>
-              <version>3.8.1</version>
-              <configuration>
-                <release>8</release>
-              </configuration>
-            </plugin>
-          </plugins>
-        </pluginManagement>
-      </build>
-    </profile>
-    
-    <profile>
-      <!-- used for skipping tests -->
-      <id>no-tests</id>
-      <properties>
-        <skipTests>true</skipTests>
-      </properties>
-    </profile>
-
-    <profile>
-      <!-- for building debian package from ant
-           (expects weka.jar/weka-src.jar in dist dir, does not attach artifacts) -->
-      <id>ant-deb-pkg</id>
-      <build>
-        <plugins>
-          <plugin>
-            <groupId>com.github.fracpete</groupId>
-            <artifactId>debian-maven-plugin</artifactId>
-            <configuration>
-              <packageName>${project.name}</packageName>
-              <packageTitle>Weka (developer version)</packageTitle>
-              <packageVersion>${project.version}</packageVersion>
-              <projectUrl>${project.url}</projectUrl>
-              <packageDescription>Weka is a collection of machine learning algorithms for data mining tasks.
-                It contains tools for data preparation, classification, regression, clustering, association
-                rules mining, and visualization. Weka is released under the GPLv3 (https://www.gnu.org/licenses/gpl-3.0.txt)</packageDescription>
-              <createSymLinks>false</createSymLinks>
-              <createIncludeFiles>false</createIncludeFiles>
-              <fileFiltering>
-                <enabled>true</enabled>
-              </fileFiltering>
-              <excludeAllArtifacts>true</excludeAllArtifacts>
-              <excludeAllDependencies>true</excludeAllDependencies>
-              <useDefaultCopyResources>false</useDefaultCopyResources>
-              <copyResources>
-                <copyResource>
-                  <source>${project.build.directory}/</source>
-                  <include>.*weka.jar</include>
-                  <target>${project.basedir}/target/deb/usr/lib/${project.name}</target>
-                </copyResource>
-                <copyResource>
-                  <source>${project.build.scriptSourceDirectory}/debian-gui</source>
-                  <target>${project.basedir}/target/deb/usr/bin/${project.name}-gui</target>
-                </copyResource>
-                <copyResource>
-                  <source>${project.build.scriptSourceDirectory}/debian-run</source>
-                  <target>${project.basedir}/target/deb/usr/bin/${project.name}-run</target>
-                </copyResource>
-                <copyResource>
-                  <source>${project.build.sourceDirectory}/weka/gui/weka_icon_new.png</source>
-                  <target>${project.basedir}/target/deb/usr/share/pixmaps/${project.name}.png</target>
-                </copyResource>
-                <copyResource>
-                  <source>${project.build.scriptSourceDirectory}/debian-gui.desktop</source>
-                  <target>${project.basedir}/target/deb/usr/share/applications/${project.name}.desktop</target>
-                </copyResource>
-                <copyResource>
-                  <source>${project.build.directory}/</source>
-                  <include>.*weka-src.jar</include>
-                  <target>${project.basedir}/target/deb/usr/lib/${project.name}/src</target>
-                </copyResource>
-              </copyResources>
-              <useDefaultFixPermissions>true</useDefaultFixPermissions>
-              <packageDependencies>
-                <packageDependency>openjdk-8-jre | openjdk-8-jre-headless</packageDependency>
-              </packageDependencies>
-            </configuration>
-          </plugin>
-        </plugins>
-      </build>
-    </profile>
-
-    <profile>
-      <!-- for building debian package from ant
-           (expects maven-generated weka-X.Y.Z.* jars in dist dir, attaches artifacts) -->
-      <id>mvn-deb-pkg</id>
-      <build>
-        <plugins>
-          <plugin>
-            <groupId>com.github.fracpete</groupId>
-            <artifactId>debian-maven-plugin</artifactId>
-            <configuration>
-              <packageName>${project.name}</packageName>
-              <packageTitle>Weka (developer version)</packageTitle>
-              <packageVersion>${project.version}</packageVersion>
-              <projectUrl>${project.url}</projectUrl>
-              <packageDescription>Weka is a collection of machine learning algorithms for data mining tasks.
-                It contains tools for data preparation, classification, regression, clustering, association
-                rules mining, and visualization. Weka is released under the GPLv3 (https://www.gnu.org/licenses/gpl-3.0.txt)</packageDescription>
-              <createSymLinks>false</createSymLinks>
-              <createIncludeFiles>false</createIncludeFiles>
-              <fileFiltering>
-                <enabled>true</enabled>
-              </fileFiltering>
-              <excludeArtifactsRegExp>
-                <param>.*linux-armhf.*</param>
-                <param>.*win-i686.*</param>
-                <param>.*x86.*</param>
-              </excludeArtifactsRegExp>
-              <useDefaultCopyResources>false</useDefaultCopyResources>
-              <copyResources>
-                <copyResource>
-                  <source>${project.build.directory}/</source>
-                  <include>.*${project.name}-.*(-SNAPSHOT|[0-9])\.jar</include>
-                  <target>${project.basedir}/target/deb/usr/lib/${project.name}</target>
-                </copyResource>
-                <copyResource>
-                  <source>${project.build.scriptSourceDirectory}/debian-gui</source>
-                  <target>${project.basedir}/target/deb/usr/bin/${project.name}-gui</target>
-                </copyResource>
-                <copyResource>
-                  <source>${project.build.scriptSourceDirectory}/debian-run</source>
-                  <target>${project.basedir}/target/deb/usr/bin/${project.name}-run</target>
-                </copyResource>
-                <copyResource>
-                  <source>${project.build.sourceDirectory}/weka/gui/weka_icon_new.png</source>
-                  <target>${project.basedir}/target/deb/usr/share/pixmaps/${project.name}.png</target>
-                </copyResource>
-                <copyResource>
-                  <source>${project.build.scriptSourceDirectory}/debian-gui.desktop</source>
-                  <target>${project.basedir}/target/deb/usr/share/applications/${project.name}.desktop</target>
-                </copyResource>
-                <copyResource>
-                  <source>${project.build.directory}/</source>
-                  <include>.*${project.name}-.*-sources\.jar</include>
-                  <target>${project.basedir}/target/deb/usr/lib/${project.name}/src</target>
-                </copyResource>
-              </copyResources>
-              <useDefaultFixPermissions>true</useDefaultFixPermissions>
-              <packageDependencies>
-                <packageDependency>openjdk-8-jre | openjdk-8-jre-headless</packageDependency>
-              </packageDependencies>
-            </configuration>
-          </plugin>
-        </plugins>
-      </build>
-    </profile>
-  </profiles>
 
   <dependencies>
     <dependency>
@@ -346,14 +138,75 @@
       <artifactId>jaxb-runtime</artifactId>
       <version>2.3.2</version>
     </dependency>
-    
   </dependencies>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    <maven.compiler.source>1.8</maven.compiler.source>
+    <maven.compiler.target>1.8</maven.compiler.target>
     <weka.main.class>weka.gui.GUIChooser</weka.main.class>
   </properties>
+
+  <profiles>
+    <profile>
+      <id>java8-compiler-plugin</id>
+      <activation>
+        <jdk>1.8</jdk>
+      </activation>
+      <build>
+        <pluginManagement>
+          <plugins>
+            <plugin>
+              <groupId>org.apache.maven.plugins</groupId>
+              <artifactId>maven-compiler-plugin</artifactId>
+              <version>3.7.0</version>
+              <configuration>
+                <source>${maven.compiler.source}</source>
+                <target>${maven.compiler.target}</target>
+              </configuration>
+            </plugin>
+          </plugins>
+        </pluginManagement>
+      </build>
+    </profile>
+
+    <profile>
+      <id>java9andlater-compiler-plugin</id>
+      <activation>
+        <jdk>[9,)</jdk>
+      </activation>
+      <build>
+        <pluginManagement>
+          <plugins>
+            <plugin>
+              <groupId>org.apache.maven.plugins</groupId>
+              <artifactId>maven-compiler-plugin</artifactId>
+              <version>3.7.0</version>
+              <configuration>
+                <source>${maven.compiler.source}</source>
+                <target>${maven.compiler.target}</target>
+                <release>8</release>
+              </configuration>
+            </plugin>
+          </plugins>
+        </pluginManagement>
+      </build>
+    </profile>
+  </profiles>
+
+  <distributionManagement>
+    <snapshotRepository>
+      <id>weka-snapshots</id>
+      <name>WEKA Snapshot Repository</name>
+      <url>https://adams.cms.waikato.ac.nz/nexus/content/repositories/weka-snapshots</url>
+    </snapshotRepository>
+    <repository>
+      <id>weka-releases</id>
+      <name>WEKA Release Repository</name>
+      <url>https://adams.cms.waikato.ac.nz/nexus/content/repositories/weka-releases</url>
+    </repository>
+  </distributionManagement>
 
   <build>
     <directory>dist</directory>
