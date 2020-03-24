@@ -141,7 +141,7 @@ public class DatasetListPanel extends JPanel implements ActionListener {
     m_List.addMouseListener(mouseListener);
 
     // m_FileChooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
-    m_FileChooser.setCoreConvertersOnly(true);
+    m_FileChooser.setCoreConvertersOnly(false);
     m_FileChooser.setMultiSelectionEnabled(true);
     m_FileChooser
       .setFileSelectionMode(ConverterFileChooser.FILES_AND_DIRECTORIES);
