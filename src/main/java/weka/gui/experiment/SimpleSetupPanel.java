@@ -35,6 +35,7 @@ import weka.experiment.RegressionSplitEvaluator;
 import weka.experiment.SplitEvaluator;
 import weka.gui.DatabaseConnectionDialog;
 import weka.gui.ExtensionFileFilter;
+import weka.gui.WekaFileChooser;
 
 import javax.swing.BorderFactory;
 import javax.swing.ButtonGroup;
@@ -145,12 +146,12 @@ public class SimpleSetupPanel
                             "Experiment configuration files (*.xml)");
 
   /** The file chooser for selecting experiments */
-  protected JFileChooser m_FileChooser =
-    new JFileChooser(new File(System.getProperty("user.dir")));
+  protected WekaFileChooser m_FileChooser =
+    new WekaFileChooser(new File(System.getProperty("user.dir")));
 
   /** The file chooser for selecting result destinations */
-  protected JFileChooser m_DestFileChooser =
-    new JFileChooser(new File(System.getProperty("user.dir")));
+  protected WekaFileChooser m_DestFileChooser =
+    new WekaFileChooser(new File(System.getProperty("user.dir")));
 
   /** Combo box for choosing experiment destination type */
   protected JComboBox m_ResultsDestinationCBox = new JComboBox();

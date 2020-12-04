@@ -41,6 +41,7 @@ import weka.gui.GenericObjectEditor;
 import weka.gui.GenericPropertiesCreator;
 import weka.gui.HierarchyPropertyParser;
 import weka.gui.LookAndFeel;
+import weka.gui.WekaFileChooser;
 import weka.gui.beans.xml.XMLBeans;
 import weka.gui.visualize.PrintablePanel;
 
@@ -3135,7 +3136,7 @@ public class KnowledgeFlowApp extends JPanel implements PropertyChangeListener,
   private int m_startX, m_startY;
 
   /** The file chooser for selecting layout files */
-  protected JFileChooser m_FileChooser = new JFileChooser(new File(
+  protected WekaFileChooser m_FileChooser = new WekaFileChooser(new File(
     System.getProperty("user.dir")));
 
   protected class KFLogPanel extends LogPanel {

@@ -21,18 +21,15 @@
 
 package weka.gui.beans;
 
-import java.awt.BorderLayout;
-import java.awt.Dialog.ModalityType;
-import java.awt.FlowLayout;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Window;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.beans.PropertyChangeListener;
-import java.beans.PropertyChangeSupport;
-import java.io.File;
-import java.io.IOException;
+import weka.core.Environment;
+import weka.core.EnvironmentHandler;
+import weka.core.converters.DatabaseConverter;
+import weka.core.converters.DatabaseSaver;
+import weka.core.converters.FileSourcedConverter;
+import weka.gui.ExtensionFileFilter;
+import weka.gui.GenericObjectEditor;
+import weka.gui.PropertySheetPanel;
+import weka.gui.WekaFileChooser;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
@@ -45,15 +42,18 @@ import javax.swing.JPasswordField;
 import javax.swing.JScrollPane;
 import javax.swing.SwingConstants;
 import javax.swing.filechooser.FileFilter;
-
-import weka.core.Environment;
-import weka.core.EnvironmentHandler;
-import weka.core.converters.DatabaseConverter;
-import weka.core.converters.DatabaseSaver;
-import weka.core.converters.FileSourcedConverter;
-import weka.gui.ExtensionFileFilter;
-import weka.gui.GenericObjectEditor;
-import weka.gui.PropertySheetPanel;
+import java.awt.BorderLayout;
+import java.awt.Dialog.ModalityType;
+import java.awt.FlowLayout;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Window;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.beans.PropertyChangeListener;
+import java.beans.PropertyChangeSupport;
+import java.io.File;
+import java.io.IOException;
 
 /**
  * GUI Customizer for the saver bean
@@ -80,8 +80,8 @@ implements BeanCustomizer, CustomizerCloseRequester, EnvironmentHandler {
   private PropertySheetPanel m_SaverEditor = 
     new PropertySheetPanel();
 
-  private JFileChooser m_fileChooser 
-  = new JFileChooser(new File(System.getProperty("user.dir")));
+  private WekaFileChooser m_fileChooser
+  = new WekaFileChooser(new File(System.getProperty("user.dir")));
 
 
   private Window m_parentWindow;

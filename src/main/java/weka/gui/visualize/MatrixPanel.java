@@ -26,6 +26,7 @@ import weka.core.Environment;
 import weka.core.Instances;
 import weka.core.Settings;
 import weka.gui.ExtensionFileFilter;
+import weka.gui.WekaFileChooser;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
@@ -798,8 +799,8 @@ public class MatrixPanel extends JPanel {
     setBt.addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(ActionEvent e) {
-        JFileChooser chooser =
-          new JFileChooser(new java.io.File(System.getProperty("user.dir")));
+        WekaFileChooser chooser =
+          new WekaFileChooser(new java.io.File(System.getProperty("user.dir")));
         ExtensionFileFilter myfilter =
           new ExtensionFileFilter("arff", "Arff data files");
         chooser.setFileFilter(myfilter);

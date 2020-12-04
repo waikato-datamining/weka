@@ -25,6 +25,7 @@ import weka.core.PluginManager;
 import weka.core.WekaPackageClassLoaderManager;
 import weka.gui.GenericPropertiesCreator;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Hashtable;
 import java.util.List;
@@ -43,50 +44,50 @@ public class ConverterResources {
    * the core loaders - hardcoded list necessary for RMI/Remote Experiments
    * (comma-separated list).
    */
-  public final static String CORE_FILE_LOADERS = weka.core.converters.ArffLoader.class
+  public final static String CORE_FILE_LOADERS = ArffLoader.class
     .getName()
     + ","
     // + weka.core.converters.C45Loader.class.getName() + ","
-    + weka.core.converters.CSVLoader.class.getName()
+    + CSVLoader.class.getName()
     + ","
-    + weka.core.converters.DatabaseConverter.class.getName()
+    + DatabaseConverter.class.getName()
     + ","
     // + weka.core.converters.LibSVMLoader.class.getName() + ","
     // + weka.core.converters.MatlabLoader.class.getName() + ","
     // + weka.core.converters.SVMLightLoader.class.getName() + ","
-    + weka.core.converters.SerializedInstancesLoader.class.getName()
+    + SerializedInstancesLoader.class.getName()
     + ","
-    + weka.core.converters.TextDirectoryLoader.class.getName()
+    + TextDirectoryLoader.class.getName()
     + ","
-    + weka.core.converters.XRFFLoader.class.getName();
+    + XRFFLoader.class.getName();
 
   /**
    * the core savers - hardcoded list necessary for RMI/Remote Experiments
    * (comma-separated list).
    */
-  public final static String CORE_FILE_SAVERS = weka.core.converters.ArffSaver.class
+  public final static String CORE_FILE_SAVERS = ArffSaver.class
     .getName()
     + ","
     // + weka.core.converters.C45Saver.class.getName() + ","
-    + weka.core.converters.CSVSaver.class.getName()
+    + CSVSaver.class.getName()
     + ","
-    + weka.core.converters.DatabaseConverter.class.getName()
+    + DatabaseConverter.class.getName()
     + ","
     // + weka.core.converters.LibSVMSaver.class.getName() + ","
     // + weka.core.converters.MatlabSaver.class.getName() + ","
     // + weka.core.converters.SVMLightSaver.class.getName() + ","
-    + weka.core.converters.SerializedInstancesSaver.class.getName()
+    + SerializedInstancesSaver.class.getName()
     + ","
-    + weka.core.converters.XRFFSaver.class.getName();
+    + XRFFSaver.class.getName();
 
   /** all available loaders (extension &lt;-&gt; classname). */
-  protected static Hashtable<String, String> m_FileLoaders;
+  protected static Hashtable<String, List<String>> m_FileLoaders;
 
   /** all available URL loaders (extension &lt;-&gt; classname). */
-  protected static Hashtable<String, String> m_URLFileLoaders;
+  protected static Hashtable<String, List<String>> m_URLFileLoaders;
 
   /** all available savers (extension &lt;-&gt; classname). */
-  protected static Hashtable<String, String> m_FileSavers;
+  protected static Hashtable<String, List<String>> m_FileSavers;
 
   /**
    * checks whether the given class is one of the hardcoded core file loaders.
@@ -127,7 +128,7 @@ public class ConverterResources {
    *
    * @return		the file loaders
    */
-  public static Hashtable<String,String> getFileLoaders() {
+  public static Hashtable<String,List<String>> getFileLoaders() {
     return m_FileLoaders;
   }
 
@@ -136,7 +137,7 @@ public class ConverterResources {
    *
    * @return		the URL file loaders
    */
-  public static Hashtable<String,String> getURLFileLoaders() {
+  public static Hashtable<String,List<String>> getURLFileLoaders() {
     return m_URLFileLoaders;
   }
 
@@ -145,7 +146,7 @@ public class ConverterResources {
    *
    * @return		the file savers
    */
-  public static Hashtable<String,String> getFileSavers() {
+  public static Hashtable<String,List<String>> getFileSavers() {
     return m_FileSavers;
   }
 
@@ -154,9 +155,9 @@ public class ConverterResources {
 
     try {
       // init
-      m_FileLoaders = new Hashtable<String, String>();
-      m_URLFileLoaders = new Hashtable<String, String>();
-      m_FileSavers = new Hashtable<String, String>();
+      m_FileLoaders = new Hashtable<String, List<String>>();
+      m_URLFileLoaders = new Hashtable<String, List<String>>();
+      m_FileSavers = new Hashtable<String, List<String>>();
 
       // generate properties
       // Note: does NOT work with RMI, hence m_FileLoadersCore/m_FileSaversCore
@@ -240,7 +241,7 @@ public class ConverterResources {
    * @param intf interfaces the converters have to implement
    * @return hashtable with ExtensionFileFilters
    */
-  protected static Hashtable<String, String> getFileConverters(
+  protected static Hashtable<String, List<String>> getFileConverters(
     String classnames, String[] intf) {
     Vector<String> list;
     String[] names;
@@ -264,9 +265,9 @@ public class ConverterResources {
    * @param intf interfaces the converters have to implement
    * @return hashtable with ExtensionFileFilters
    */
-  protected static Hashtable<String, String> getFileConverters(
+  protected static Hashtable<String, List<String>> getFileConverters(
     List<String> classnames, String[] intf) {
-    Hashtable<String, String> result;
+    Hashtable<String, List<String>> result;
     String classname;
     Class<?> cls;
     String[] ext;
@@ -274,7 +275,7 @@ public class ConverterResources {
     int i;
     int n;
 
-    result = new Hashtable<String, String>();
+    result = new Hashtable<String, List<String>>();
 
     for (i = 0; i < classnames.size(); i++) {
       classname = classnames.get(i);
@@ -302,7 +303,9 @@ public class ConverterResources {
       }
 
       for (n = 0; n < ext.length; n++) {
-        result.put(ext[n], classname);
+        if (!result.containsKey(ext[n]))
+          result.put(ext[n], new ArrayList<String>());
+        result.get(ext[n]).add(classname);
       }
     }
 

@@ -5,7 +5,7 @@
 
   <groupId>nz.ac.waikato.cms.weka</groupId>
   <artifactId>weka-dev</artifactId>
-  <version>3.9.0-fork-0.0.10</version><!-- weka-version -->
+  <version>3.9.0-fork-0.0.11</version><!-- weka-version -->
   <packaging>jar</packaging>
 
   <name>weka-dev</name>
@@ -108,6 +108,12 @@
       <artifactId>netlib-java</artifactId>
       <version>1.1</version>
     </dependency>    
+
+    <dependency>
+      <groupId>com.github.fracpete</groupId>
+      <artifactId>jfilechooser-bookmarks</artifactId>
+      <version>0.1.6</version>
+    </dependency>
   </dependencies>
 
   <properties>

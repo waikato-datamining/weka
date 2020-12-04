@@ -31,16 +31,14 @@ import weka.core.converters.ConverterResources;
 import weka.core.converters.ConverterUtils;
 import weka.core.converters.FileSourcedConverter;
 
-import javax.swing.BorderFactory;
-import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JFileChooser;
-import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.filechooser.FileFilter;
 import java.awt.BorderLayout;
 import java.awt.Component;
+import java.awt.FlowLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.beans.PropertyChangeEvent;
@@ -54,10 +52,10 @@ import java.util.Vector;
  * can set a Capabilities filter.
  * 
  * @author fracpete (fracpete at waikato dot ac dot nz)
- * @version $Revision: 14285 $
+ * @version $Revision: 15656 $
  * @see #setCapabilitiesFilter(Capabilities)
  */
-public class ConverterFileChooser extends JFileChooser {
+public class ConverterFileChooser extends WekaFileChooser {
 
   /** for serialization. */
   private static final long serialVersionUID = -5373058011025481738L;
@@ -71,23 +69,17 @@ public class ConverterFileChooser extends JFileChooser {
   /** the saver dialog. */
   public final static int SAVER_DIALOG = 2;
 
-  /** the file chooser itself. */
-  protected ConverterFileChooser m_Self;
-
   /** the file filters for the loaders. */
-  protected static Vector<ExtensionFileFilter> m_LoaderFileFilters;
+  protected static Vector<ExtensionFileFilterWithClass> m_LoaderFileFilters;
 
   /** the file filters for the savers. */
-  protected static Vector<ExtensionFileFilter> m_SaverFileFilters;
+  protected static Vector<ExtensionFileFilterWithClass> m_SaverFileFilters;
 
   /** the type of dialog to display. */
   protected int m_DialogType;
 
   /** the converter that was chosen by the user. */
   protected Object m_CurrentConverter;
-
-  /** the configure button. */
-  protected JButton m_ConfigureButton;
 
   /** the propertychangelistener. */
   protected PropertyChangeListener m_Listener;
@@ -110,11 +102,8 @@ public class ConverterFileChooser extends JFileChooser {
   /** the checkbox for bringing up the GenericObjectEditor. */
   protected JCheckBox m_CheckBoxOptions;
 
-  /** the note about the options dialog. */
-  protected JLabel m_LabelOptions;
-
   /** the GOE for displaying the options of a loader/saver. */
-  protected GenericObjectEditor m_Editor = null;
+  protected GenericObjectEditor m_Editor;
 
   /** whether the GOE was OKed or Canceled. */
   protected int m_EditorResult;
@@ -123,8 +112,8 @@ public class ConverterFileChooser extends JFileChooser {
    * whether to display only core converters (hardcoded in ConverterUtils).
    * Necessary for RMI/Remote Experiments for instance.
    * 
-   * @see weka.core.converters.ConverterResources#CORE_FILE_LOADERS
-   * @see weka.core.converters.ConverterResources#CORE_FILE_SAVERS
+   * @see ConverterResources#CORE_FILE_LOADERS
+   * @see ConverterResources#CORE_FILE_SAVERS
    */
   protected boolean m_CoreConvertersOnly = false;
 
@@ -146,7 +135,6 @@ public class ConverterFileChooser extends JFileChooser {
    */
   public ConverterFileChooser() {
     super();
-    initialize();
   }
 
   /**
@@ -156,7 +144,6 @@ public class ConverterFileChooser extends JFileChooser {
    */
   public ConverterFileChooser(File currentDirectory) {
     super(currentDirectory);
-    initialize();
   }
 
   /**
@@ -166,7 +153,6 @@ public class ConverterFileChooser extends JFileChooser {
    */
   public ConverterFileChooser(String currentDirectory) {
     super(currentDirectory);
-    initialize();
   }
 
   /**
@@ -174,21 +160,14 @@ public class ConverterFileChooser extends JFileChooser {
    */
   protected void initialize() {
     JPanel panel;
-    JPanel panel2;
 
-    m_Self = this;
+    super.initialize();
 
+    panel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+    m_AccessoryPanel.add(panel, BorderLayout.NORTH);
     m_CheckBoxOptions = new JCheckBox("Invoke options dialog");
     m_CheckBoxOptions.setMnemonic('I');
-    m_LabelOptions = new JLabel(
-      "<html><br>Note:<br><br>Some file formats offer additional<br>options which can be customized<br>when invoking the options dialog.</html>");
-    panel = new JPanel(new BorderLayout());
-    panel.add(m_CheckBoxOptions, BorderLayout.NORTH);
-    panel2 = new JPanel(new BorderLayout());
-    panel2.add(m_LabelOptions, BorderLayout.NORTH);
-    panel2.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-    panel.add(panel2, BorderLayout.CENTER);
-    setAccessory(panel);
+    panel.add(m_CheckBoxOptions);
 
     m_Editor = new GenericObjectEditor(false);
     ((GenericObjectEditor.GOEPanel) m_Editor.getCustomEditor())
@@ -224,21 +203,20 @@ public class ConverterFileChooser extends JFileChooser {
    * @return the filtered list of filters
    * @see #m_CoreConvertersOnly
    */
-  protected Vector<ExtensionFileFilter> filterNonCoreLoaderFileFilters(
-    Vector<ExtensionFileFilter> list) {
-    Vector<ExtensionFileFilter> result;
+  protected Vector<ExtensionFileFilterWithClass> filterNonCoreLoaderFileFilters(
+    Vector<ExtensionFileFilterWithClass> list) {
+    Vector<ExtensionFileFilterWithClass> result;
     int i;
-    ExtensionFileFilter filter;
+    ExtensionFileFilterWithClass filter;
     AbstractLoader loader;
 
     if (!getCoreConvertersOnly()) {
       result = list;
     } else {
-      result = new Vector<ExtensionFileFilter>();
+      result = new Vector<ExtensionFileFilterWithClass>();
       for (i = 0; i < list.size(); i++) {
         filter = list.get(i);
-        loader = ConverterUtils
-          .getLoaderForExtension(filter.getExtensions()[0]);
+        loader = (AbstractLoader) filter.newInstance();
         if (ConverterResources.isCoreFileLoader(loader.getClass().getName())) {
           result.add(filter);
         }
@@ -255,20 +233,20 @@ public class ConverterFileChooser extends JFileChooser {
    * @return the filtered list of filters
    * @see #m_CoreConvertersOnly
    */
-  protected Vector<ExtensionFileFilter> filterNonCoreSaverFileFilters(
-    Vector<ExtensionFileFilter> list) {
-    Vector<ExtensionFileFilter> result;
+  protected Vector<ExtensionFileFilterWithClass> filterNonCoreSaverFileFilters(
+    Vector<ExtensionFileFilterWithClass> list) {
+    Vector<ExtensionFileFilterWithClass> result;
     int i;
-    ExtensionFileFilter filter;
+    ExtensionFileFilterWithClass filter;
     AbstractSaver saver;
 
     if (!getCoreConvertersOnly()) {
       result = list;
     } else {
-      result = new Vector<ExtensionFileFilter>();
+      result = new Vector<ExtensionFileFilterWithClass>();
       for (i = 0; i < list.size(); i++) {
         filter = list.get(i);
-        saver = ConverterUtils.getSaverForExtension(filter.getExtensions()[0]);
+        saver = (AbstractSaver) filter.newInstance();
         if (ConverterResources.isCoreFileSaver(saver.getClass().getName())) {
           result.add(filter);
         }
@@ -285,17 +263,17 @@ public class ConverterFileChooser extends JFileChooser {
    * @param list the filters to check
    * @return the filtered list of filters
    */
-  protected Vector<ExtensionFileFilter> filterSaverFileFilters(
-    Vector<ExtensionFileFilter> list) {
-    Vector<ExtensionFileFilter> result;
+  protected Vector<ExtensionFileFilterWithClass> filterSaverFileFilters(
+    Vector<ExtensionFileFilterWithClass> list) {
+    Vector<ExtensionFileFilterWithClass> result;
     int i;
-    ExtensionFileFilter filter;
+    ExtensionFileFilterWithClass filter;
     AbstractSaver saver;
 
     if (m_CapabilitiesFilter == null) {
       result = list;
     } else {
-      result = new Vector<ExtensionFileFilter>();
+      result = new Vector<ExtensionFileFilterWithClass>();
 
       for (i = 0; i < list.size(); i++) {
         filter = list.get(i);
@@ -310,7 +288,7 @@ public class ConverterFileChooser extends JFileChooser {
   }
 
   /**
-   * initializes the ExtensionFileFilters.
+   * initializes the ExtensionFileFilterWithClasss.
    * 
    * @param loader if true then the loader filter are initialized
    * @param classnames the classnames of the converters
@@ -323,12 +301,12 @@ public class ConverterFileChooser extends JFileChooser {
     String[] ext;
     String desc;
     FileSourcedConverter converter;
-    ExtensionFileFilter filter;
+    ExtensionFileFilterWithClass filter;
 
     if (loader) {
-      m_LoaderFileFilters = new Vector<ExtensionFileFilter>();
+      m_LoaderFileFilters = new Vector<ExtensionFileFilterWithClass>();
     } else {
-      m_SaverFileFilters = new Vector<ExtensionFileFilter>();
+      m_SaverFileFilters = new Vector<ExtensionFileFilterWithClass>();
     }
 
     for (i = 0; i < classnames.size(); i++) {
@@ -354,12 +332,12 @@ public class ConverterFileChooser extends JFileChooser {
       // loader?
       if (loader) {
         for (n = 0; n < ext.length; n++) {
-          filter = new ExtensionFileFilter(ext[n], desc + " (*" + ext[n] + ")");
+          filter = new ExtensionFileFilterWithClass(ext[n], desc + " (*" + ext[n] + ")", cls);
           m_LoaderFileFilters.add(filter);
         }
       } else {
         for (n = 0; n < ext.length; n++) {
-          filter = new ExtensionFileFilter(ext[n], desc + " (*" + ext[n] + ")");
+          filter = new ExtensionFileFilterWithClass(ext[n], desc + " (*" + ext[n] + ")", cls);
           m_SaverFileFilters.add(filter);
         }
       }
@@ -372,7 +350,7 @@ public class ConverterFileChooser extends JFileChooser {
    * @param dialogType the type of dialog to setup the GUI for
    */
   protected void initGUI(int dialogType) {
-    Vector<ExtensionFileFilter> list;
+    Vector<ExtensionFileFilterWithClass> list;
     int i;
     boolean acceptAll;
 
@@ -547,9 +525,9 @@ public class ConverterFileChooser extends JFileChooser {
 
     // do we have to add the extension?
     if ((result == APPROVE_OPTION) && (getSelectedFile().isFile())) {
-      if (getFileFilter() instanceof ExtensionFileFilter) {
+      if (getFileFilter() instanceof ExtensionFileFilterWithClass) {
         String filename = getSelectedFile().getAbsolutePath();
-        String[] extensions = ((ExtensionFileFilter) getFileFilter())
+        String[] extensions = ((ExtensionFileFilterWithClass) getFileFilter())
           .getExtensions();
         if (!filename.endsWith(extensions[0])) {
           filename += extensions[0];
@@ -621,9 +599,9 @@ public class ConverterFileChooser extends JFileChooser {
 
     // do we have to add the extension?
     if (result == APPROVE_OPTION) {
-      if (getFileFilter() instanceof ExtensionFileFilter) {
+      if (getFileFilter() instanceof ExtensionFileFilterWithClass) {
         String filename = getSelectedFile().getAbsolutePath();
-        String[] extensions = ((ExtensionFileFilter) getFileFilter())
+        String[] extensions = ((ExtensionFileFilterWithClass) getFileFilter())
           .getExtensions();
         if (!filename.endsWith(extensions[0])) {
           filename += extensions[0];
@@ -718,7 +696,6 @@ public class ConverterFileChooser extends JFileChooser {
    * sets the current converter according to the current filefilter.
    */
   protected void updateCurrentConverter() {
-    String[] extensions;
     Object newConverter;
 
     if (getFileFilter() == null) {
@@ -727,12 +704,7 @@ public class ConverterFileChooser extends JFileChooser {
 
     if (!isAcceptAllFileFilterUsed()) {
       // determine current converter
-      extensions = ((ExtensionFileFilter) getFileFilter()).getExtensions();
-      if (m_DialogType == LOADER_DIALOG) {
-        newConverter = ConverterUtils.getLoaderForExtension(extensions[0]);
-      } else {
-        newConverter = ConverterUtils.getSaverForExtension(extensions[0]);
-      }
+      newConverter = ((ExtensionFileFilterWithClass) getFileFilter()).newInstance();
 
       try {
         if (m_CurrentConverter == null) {
@@ -759,6 +731,7 @@ public class ConverterFileChooser extends JFileChooser {
   protected void configureCurrentConverter(int dialogType) {
     String filename;
     File currFile;
+    ExtensionFileFilterWithClass filter;
 
     if ((getSelectedFile() == null) || (getSelectedFile().isDirectory())) {
       return;
@@ -767,10 +740,11 @@ public class ConverterFileChooser extends JFileChooser {
     filename = getSelectedFile().getAbsolutePath();
 
     if (m_CurrentConverter == null) {
+      filter = (ExtensionFileFilterWithClass) getFileFilter();
       if (dialogType == LOADER_DIALOG) {
-        m_CurrentConverter = ConverterUtils.getLoaderForFile(filename);
+        m_CurrentConverter = filter.newInstance();
       } else if (dialogType == SAVER_DIALOG) {
-        m_CurrentConverter = ConverterUtils.getSaverForFile(filename);
+        m_CurrentConverter = filter.newInstance();
       } else {
         throw new IllegalStateException("Cannot determine loader/saver!");
       }

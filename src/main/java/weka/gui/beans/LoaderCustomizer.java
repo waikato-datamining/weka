@@ -21,6 +21,25 @@
 
 package weka.gui.beans;
 
+import weka.core.Environment;
+import weka.core.EnvironmentHandler;
+import weka.core.converters.DatabaseConverter;
+import weka.core.converters.DatabaseLoader;
+import weka.core.converters.FileSourcedConverter;
+import weka.gui.ExtensionFileFilter;
+import weka.gui.GenericObjectEditor;
+import weka.gui.PropertySheetPanel;
+import weka.gui.WekaFileChooser;
+
+import javax.swing.BorderFactory;
+import javax.swing.JButton;
+import javax.swing.JDialog;
+import javax.swing.JFileChooser;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JPasswordField;
+import javax.swing.JScrollPane;
+import javax.swing.SwingConstants;
 import java.awt.BorderLayout;
 import java.awt.Dialog.ModalityType;
 import java.awt.FlowLayout;
@@ -33,25 +52,6 @@ import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.io.File;
 import java.util.Arrays;
-
-import javax.swing.BorderFactory;
-import javax.swing.JButton;
-import javax.swing.JDialog;
-import javax.swing.JFileChooser;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JPasswordField;
-import javax.swing.JScrollPane;
-import javax.swing.SwingConstants;
-
-import weka.core.Environment;
-import weka.core.EnvironmentHandler;
-import weka.core.converters.DatabaseConverter;
-import weka.core.converters.DatabaseLoader;
-import weka.core.converters.FileSourcedConverter;
-import weka.gui.ExtensionFileFilter;
-import weka.gui.GenericObjectEditor;
-import weka.gui.PropertySheetPanel;
 
 /**
  * GUI Customizer for the loader bean
@@ -76,7 +76,7 @@ public class LoaderCustomizer extends JPanel implements BeanCustomizer,
 
   private final PropertySheetPanel m_LoaderEditor = new PropertySheetPanel();
 
-  private final JFileChooser m_fileChooser = new JFileChooser(new File(
+  private final WekaFileChooser m_fileChooser = new WekaFileChooser(new File(
     System.getProperty("user.dir")));
   /*
    * private JDialog m_chooserDialog = new
