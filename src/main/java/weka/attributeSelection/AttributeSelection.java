@@ -91,7 +91,7 @@ import weka.filters.unsupervised.attribute.Remove;
  * <p/>
  * 
  * @author Mark Hall (mhall@cs.waikato.ac.nz)
- * @version $Revision: 11942 $
+ * @version $Revision$
  */
 public class AttributeSelection implements Serializable, RevisionHandler {
 
@@ -99,53 +99,53 @@ public class AttributeSelection implements Serializable, RevisionHandler {
   static final long serialVersionUID = 4170171824147584330L;
 
   /** the instances to select attributes from */
-  private Instances m_trainInstances;
+  protected Instances m_trainInstances;
 
   /** the attribute/subset evaluator */
-  private ASEvaluation m_ASEvaluator;
+  protected ASEvaluation m_ASEvaluator;
 
   /** the search method */
-  private ASSearch m_searchMethod;
+  protected ASSearch m_searchMethod;
 
   /** the number of folds to use for cross validation */
-  private int m_numFolds;
+  protected int m_numFolds;
 
   /** holds a string describing the results of the attribute selection */
-  private final StringBuffer m_selectionResults;
+  protected final StringBuffer m_selectionResults;
 
   /** rank features (if allowed by the search method) */
-  private boolean m_doRank;
+  protected boolean m_doRank;
 
   /** do cross validation */
-  private boolean m_doXval;
+  protected boolean m_doXval;
 
   /** seed used to randomly shuffle instances for cross validation */
-  private int m_seed;
+  protected int m_seed;
 
   /** number of attributes requested from ranked results */
-  private int m_numToSelect;
+  protected int m_numToSelect;
 
   /** the selected attributes */
-  private int[] m_selectedAttributeSet;
+  protected int[] m_selectedAttributeSet;
 
   /** the attribute indexes and associated merits if a ranking is produced */
-  private double[][] m_attributeRanking;
+  protected double[][] m_attributeRanking;
 
   /** if a feature selection run involves an attribute transformer */
-  private AttributeTransformer m_transformer = null;
+  protected AttributeTransformer m_transformer = null;
 
   /**
    * the attribute filter for processing instances with respect to the most
    * recent feature selection run
    */
-  private Remove m_attributeFilter = null;
+  protected Remove m_attributeFilter = null;
 
   /**
    * hold statistics for repeated feature selection, such as under cross
    * validation
    */
-  private double[][] m_rankResults = null;
-  private double[] m_subsetResults = null;
+  protected double[][] m_rankResults = null;
+  protected double[] m_subsetResults = null;
 
   /**
    * Return the number of attributes selected from the most recent run of
@@ -391,49 +391,53 @@ public class AttributeSelection implements Serializable, RevisionHandler {
     }
 
     if ((m_searchMethod instanceof RankedOutputSearch) && (m_doRank == true)) {
+      double[][] rankResults = new double[m_rankResults.length][];
+      for (int i = 0; i < m_rankResults.length; i++) {
+        rankResults[i] = m_rankResults[i].clone();
+      }
       CvString.append("average merit      average rank  attribute\n");
 
       // calcualte means and std devs
-      for (int i = 0; i < m_rankResults[0].length; i++) {
-        m_rankResults[0][i] /= m_numFolds; // mean merit
-        double var = m_rankResults[0][i] * m_rankResults[0][i] * m_numFolds;
-        var = (m_rankResults[2][i] - var);
+      for (int i = 0; i < rankResults[0].length; i++) {
+        rankResults[0][i] /= m_numFolds; // mean merit
+        double var = rankResults[0][i] * rankResults[0][i] * m_numFolds;
+        var = (rankResults[2][i] - var);
         var /= m_numFolds;
 
         if (var <= 0.0) {
           var = 0.0;
-          m_rankResults[2][i] = 0;
+          rankResults[2][i] = 0;
         } else {
-          m_rankResults[2][i] = Math.sqrt(var);
+          rankResults[2][i] = Math.sqrt(var);
         }
 
-        m_rankResults[1][i] /= m_numFolds; // mean rank
-        var = m_rankResults[1][i] * m_rankResults[1][i] * m_numFolds;
-        var = (m_rankResults[3][i] - var);
+        rankResults[1][i] /= m_numFolds; // mean rank
+        var = rankResults[1][i] * rankResults[1][i] * m_numFolds;
+        var = (rankResults[3][i] - var);
         var /= m_numFolds;
 
         if (var <= 0.0) {
           var = 0.0;
-          m_rankResults[3][i] = 0;
+          rankResults[3][i] = 0;
         } else {
-          m_rankResults[3][i] = Math.sqrt(var);
+          rankResults[3][i] = Math.sqrt(var);
         }
       }
 
       // now sort them by mean rank
-      int[] s = Utils.sort(m_rankResults[1]);
+      int[] s = Utils.sort(rankResults[1]);
       for (int element : s) {
-        if (m_rankResults[1][element] > 0) {
+        if (rankResults[1][element] > 0) {
           CvString.append(Utils.doubleToString(
           /*
            * Math. abs(
-           */m_rankResults[0][element]/* ) */, 6, 3)
+           */rankResults[0][element]/* ) */, 6, 3)
             + " +-"
-            + Utils.doubleToString(m_rankResults[2][element], 6, 3)
+            + Utils.doubleToString(rankResults[2][element], 6, 3)
             + "   "
             + Utils
-              .doubleToString(m_rankResults[1][element], fieldWidth + 2, 1)
-            + " +-" + Utils.doubleToString(m_rankResults[3][element], 5, 2)
+              .doubleToString(rankResults[1][element], fieldWidth + 2, 1)
+            + " +-" + Utils.doubleToString(rankResults[3][element], 5, 2)
             + "  " + Utils.doubleToString((element + 1), fieldWidth, 0) + " "
             + m_trainInstances.attribute(element).name() + "\n");
         }
@@ -1085,6 +1089,6 @@ public class AttributeSelection implements Serializable, RevisionHandler {
    */
   @Override
   public String getRevision() {
-    return RevisionUtils.extract("$Revision: 11942 $");
+    return RevisionUtils.extract("$Revision$");
   }
 }
