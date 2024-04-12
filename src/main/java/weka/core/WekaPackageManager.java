@@ -44,12 +44,14 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.PrintStream;
+import java.io.PrintWriter;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
@@ -72,9 +74,9 @@ import java.util.zip.ZipInputStream;
 /**
  * Class providing package management and manipulation routines. Also provides a
  * command line interface for package management.
- * 
+ *
  * @author Mark Hall (mhall{[at]}pentaho{[dot]}com)
- * @version $Revision: 14546 $
+ * @version $Revision: 15543 $
  */
 public class WekaPackageManager {
 
@@ -108,6 +110,12 @@ public class WekaPackageManager {
    * match in the list is considered as passing the test.
    */
   public static final String OS_ARCH_KEY = "OSArch";
+
+  /**
+   * Package metadata key for JVM version. Values can be prefixed by a less-than
+   * or greater-than sign. Otherwise, equality is assumed.
+   */
+  public static final String VM_VERSION_KEY = "JVMVersion";
 
   /**
    * Package metadata key for preventing load if an environment variable is not
@@ -189,7 +197,7 @@ public class WekaPackageManager {
 
   /** Primary repository */
   private static String PRIMARY_REPOSITORY =
-    "http://weka.sourceforge.net/packageMetaData";
+    "https://weka.sourceforge.io/packageMetaData";
 
   /** Backup mirror of the repository */
   private static String REP_MIRROR;
@@ -232,6 +240,12 @@ public class WekaPackageManager {
 
   /** The set of packages that the user has requested not to load */
   public static Set<String> m_doNotLoadList;
+
+  /**
+   * Holds how many times we've failed to establish the repository backup mirror
+   * URL
+   */
+  protected static int m_mirrorFailureCount;
 
   static {
     establishWekaHome();
@@ -483,9 +497,10 @@ public class WekaPackageManager {
       return;
     }
 
-    String mirrorListURL =
-      "https://www.cs.waikato.ac.nz/ml/weka/packageMetaDataMirror.txt";
     try {
+      String mirrorListURL =
+        "https://www.cs.waikato.ac.nz/ml/weka/packageMetaDataMirror.txt";
+
       URLConnection conn = null;
       URL connURL = new URL(mirrorListURL);
 
@@ -518,11 +533,10 @@ public class WekaPackageManager {
         }
       }
     } catch (Exception ex) {
-      System.err.println("Failed to access package mirror: " + mirrorListURL);
-      ex.printStackTrace();
       log(weka.core.logging.Logger.Level.WARNING,
         "[WekaPackageManager] The repository meta data mirror file seems "
           + "to be unavailable (" + ex.getMessage() + ")");
+      m_mirrorFailureCount++;
     }
   }
 
@@ -868,10 +882,14 @@ public class WekaPackageManager {
     } catch (Exception ex) {
       // Ignore - we will get an exception when checking for an unofficial
       // package
-      return true;
+      // return true;
     }
 
     if (!osAndArchCheck(toLoad, progress)) {
+      return false;
+    }
+
+    if (!vmVersionCheck(toLoad, progress)) {
       return false;
     }
 
@@ -966,6 +984,88 @@ public class WekaPackageManager {
   }
 
   /**
+   * Checks the supplied package against the JVM version running Weka. Packages
+   * that don't specify a JVM version are assumed to be OK. The entry in the
+   * JVMVersion key are expected to be a floating point number, optionally
+   * prefixed by either a greater-than or less-than symbol. Absence of either
+   * of these symbols imply equality as the test.
+   *
+   * @param toLoad the package to check
+   * @param progress PrintStream for progress info
+   * @return true if the supplied package passes the JVM version test.
+   */
+  public static boolean vmVersionCheck(Package toLoad, PrintStream... progress) {
+    String thisVMVersion = System.getProperty("java.specification.version");
+    if (thisVMVersion != null && thisVMVersion.length() > 0) {
+      double actualVM = -1;
+      try {
+        actualVM = Double.parseDouble(thisVMVersion);
+      } catch (NumberFormatException e) {
+        e.printStackTrace();
+        return true;
+      }
+
+      try {
+        Object reqVMS = toLoad.getPackageMetaDataElement(VM_VERSION_KEY);
+        if (reqVMS != null) {
+          String vm = reqVMS.toString();
+
+          String op = "=";
+          if (vm.charAt(0) == '>') {
+            op = ">";
+            vm = vm.substring(1);
+          } else if (vm.charAt(0) == '<') {
+            op = "<";
+            vm = vm.substring(1);
+          }
+          double requestedVM = -1;
+          try {
+            requestedVM = Double.parseDouble(vm);
+          } catch (NumberFormatException e) {
+            e.printStackTrace();
+            return true;
+          }
+
+          boolean result = true;
+          String failureMessage = "";
+          if (op.equals("=")) {
+            result = requestedVM == actualVM;
+            if (!result) {
+              failureMessage = "[WekaPackageManager] Unable to load '"
+                + toLoad.getName() + "' because "
+                + "JVM " + actualVM + " does not match requested JVM " + requestedVM;
+            }
+          } else if (op.equals("<")) {
+            result = actualVM < requestedVM;
+            if (!result) {
+              failureMessage = "[WekaPackageManager] Unable to load '"
+                + toLoad.getName() +"' because "
+                + "JVM " + actualVM + " is not < requested JVM " + requestedVM;
+            }
+          } else {
+            result = actualVM > requestedVM;
+            if (!result) {
+              failureMessage = "[WekaPackageManager] Unable to laod '"
+                + toLoad.getName() + "' because "
+                + "JVM " + actualVM + " is not > requested JVM " + requestedVM;
+            }
+          }
+          if (!result) {
+            for (PrintStream p : progress) {
+              p.println(failureMessage);
+            }
+          }
+
+          return result;
+        }
+      } catch (Exception ex) {
+        ex.printStackTrace();
+      }
+    }
+    return true;
+  }
+
+  /**
    * Checks the supplied package against the current OS and architecture.
    * Packages that don't specify OS and (optionally) architecture constraints
    * are assumed to be OK. OS names in the OSName entry of the package's
@@ -980,8 +1080,7 @@ public class WekaPackageManager {
    * @param progress PrintStream for progress info
    * @return true if the supplied package passes OS/arch constraints.
    */
-  public static boolean osAndArchCheck(Package toLoad,
-    PrintStream... progress) {
+  public static boolean osAndArchCheck(Package toLoad, PrintStream... progress) {
     // check for OS restrictions
     try {
       Object osNames = toLoad.getPackageMetaDataElement(OS_NAME_KEY);
@@ -1247,7 +1346,8 @@ public class WekaPackageManager {
       // if we have a non-empty packages dir then check
       // the integrity of our cache first
       if (contents.length > 0) {
-        establishCacheIfNeeded(System.out);
+        // establishCacheIfNeeded(System.out);
+        startupCheck(false, System.out);
       }
 
       // dynamic injection of dependencies between packages
@@ -1573,10 +1673,6 @@ public class WekaPackageManager {
       return null;
     }
 
-    if (REP_MIRROR == null) {
-      establishMirror();
-    }
-
     Exception problem = null;
     if (INITIAL_CACHE_BUILD_NEEDED) {
       for (PrintStream p : progress) {
@@ -1586,19 +1682,6 @@ public class WekaPackageManager {
       problem = refreshCache(progress);
 
       INITIAL_CACHE_BUILD_NEEDED = false;
-    } else {
-      // if no initial build needed then check for a server-side forced
-      // refresh...
-      try {
-        if (checkForForcedCacheRefresh()) {
-          for (PrintStream p : progress) {
-            p.println("Forced repository metadata refresh, please wait...");
-          }
-          problem = refreshCache(progress);
-        }
-      } catch (MalformedURLException ex) {
-        problem = ex;
-      }
     }
 
     return problem;
@@ -1851,8 +1934,11 @@ public class WekaPackageManager {
    * data
    */
   private static void useCacheOrOnlineRepository() {
-    if (REP_MIRROR == null) {
+    if (REP_MIRROR == null && m_mirrorFailureCount < 3) {
       establishMirror();
+      if (REP_MIRROR == null) {
+        m_mirrorFailureCount++;
+      }
     }
 
     if (CACHE_URL != null) {
@@ -2565,6 +2651,10 @@ public class WekaPackageManager {
         return; // bail out here
       }
 
+      if (!vmVersionCheck(toInstall, System.out)) {
+        return; // bail out
+      }
+
       if (toInstall.isInstalled()) {
         Package installedVersion = getInstalledPackageInfo(packageName);
         if (!toInstall.equals(installedVersion)) {
@@ -2872,6 +2962,74 @@ public class WekaPackageManager {
     System.out.println(result.toString());
   }
 
+  public static Exception startupCheck(boolean force, PrintStream... progress) {
+
+    if (m_offline) {
+      return null;
+    }
+
+    Exception problem = null;
+    BufferedReader br = null;
+    PrintWriter pw = null;
+    File newPackageLastTimeCheckFile =
+      new File(WEKA_HOME.toString() + File.separator + "new_package_check.txt");
+    try {
+      // first check against last time that new packages were checked for
+      boolean doChecks = false;
+      long currentTime = System.currentTimeMillis();
+      if (!newPackageLastTimeCheckFile.exists()) {
+        doChecks = true;
+      } else if (!force) {
+        br = new BufferedReader(new FileReader(newPackageLastTimeCheckFile));
+        String t = br.readLine();
+        long lastTime = Long.parseLong(t);
+        doChecks = (currentTime - lastTime > 720L * 60L * 1000L);
+      }
+
+      if (doChecks || force) {
+
+        if (REP_MIRROR == null) {
+          establishMirror();
+        }
+
+        establishCacheIfNeeded(progress);
+        boolean forcedCacheRefresh = false;
+        try {
+          if (forcedCacheRefresh = checkForForcedCacheRefresh()) {
+            for (PrintStream p : progress) {
+              p.println("Forced repository metadata refresh, please wait...");
+            }
+            problem = refreshCache(progress);
+          }
+        } catch (MalformedURLException ex) {
+          problem = ex;
+        }
+
+        if (!forcedCacheRefresh) {
+          checkForNewPackages(progress);
+        }
+        pw = new PrintWriter(new FileWriter(newPackageLastTimeCheckFile));
+        pw.println(currentTime);
+        pw.flush();
+      }
+    } catch (IOException e) {
+      e.printStackTrace();
+    } finally {
+      if (br != null) {
+        try {
+          br.close();
+        } catch (IOException e) {
+          e.printStackTrace();
+        }
+      }
+      if (pw != null) {
+        pw.close();
+      }
+    }
+
+    return problem;
+  }
+
   private static void printUsage() {
     System.out
       .println("Usage: weka.core.WekaPackageManager [-offline] [option]");
@@ -2908,8 +3066,9 @@ public class WekaPackageManager {
         }
       }
 
-      establishCacheIfNeeded(System.out);
-      checkForNewPackages(System.out);
+      // establishCacheIfNeeded(System.out);
+      // checkForNewPackages(System.out);
+      startupCheck(true, System.out);
 
       if (args.length == 0 || args[0].equalsIgnoreCase("-h")
         || args[0].equalsIgnoreCase("-help")) {
