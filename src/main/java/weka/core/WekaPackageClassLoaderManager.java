@@ -102,6 +102,10 @@ public class WekaPackageClassLoaderManager {
       InputStream arpackAllInputStream =
         getClass().getClassLoader().getResourceAsStream(
           "arpack_combined.jar");
+      if (arpackAllInputStream == null)
+	arpackAllInputStream =
+	  getClass().getClassLoader().getResourceAsStream(
+	    "arpack_combined_all.jar");
       InputStream mtjInputStream =
         getClass().getClassLoader().getResourceAsStream("mtj.jar");
       if (mtjCoreInputStream != null && arpackAllInputStream != null
