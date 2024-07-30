@@ -455,7 +455,10 @@ public abstract class AbstractClassifier implements Classifier, BatchPredictor,
    */
   @Override
   public String getBatchSize() {
-    return m_BatchSize;
+    if (m_BatchSize == null)
+      return BATCH_SIZE_DEFAULT;
+    else
+      return m_BatchSize;
   }
 
   /**
