@@ -417,7 +417,10 @@ public abstract class AbstractClassifier implements Classifier, BatchPredictor,
    * Get the number of decimal places.
    */
   public int getNumDecimalPlaces() {
-    return m_numDecimalPlaces;
+    if (m_BatchSize == null)
+      return NUM_DECIMAL_PLACES_DEFAULT;
+    else
+      return m_numDecimalPlaces;
   }
 
   /**
