@@ -5,6 +5,8 @@ Patched versions of Weka (one per branch), as used by various ADAMS projects.
 
 * Update version in `pom.xml`
 
+* Switch to Java 8
+
 * Build and deploy artifacts
 
 ```bash
