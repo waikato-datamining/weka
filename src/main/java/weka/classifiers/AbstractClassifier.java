@@ -15,7 +15,7 @@
 
 /*
  *    AbstractClassifier.java
- *    Copyright (C) 1999-2012 University of Waikato, Hamilton, New Zealand
+ *    Copyright (C) 1999-2026 University of Waikato, Hamilton, New Zealand
  *
  */
 
@@ -47,7 +47,6 @@ import java.util.Vector;
  * 
  * @author Eibe Frank (eibe@cs.waikato.ac.nz)
  * @author Len Trigg (trigg@cs.waikato.ac.nz)
- * @version $Revision$
  */
 public abstract class AbstractClassifier implements Classifier, BatchPredictor,
   Cloneable, Serializable, OptionHandler, CapabilitiesHandler, RevisionHandler,
@@ -417,8 +416,10 @@ public abstract class AbstractClassifier implements Classifier, BatchPredictor,
    * Get the number of decimal places.
    */
   public int getNumDecimalPlaces() {
-    return m_numDecimalPlaces;
-  }
+    if (m_BatchSize == null)
+      return NUM_DECIMAL_PLACES_DEFAULT;
+    else
+      return m_numDecimalPlaces;  }
 
   /**
    * Set the number of decimal places.
@@ -456,7 +457,10 @@ public abstract class AbstractClassifier implements Classifier, BatchPredictor,
    */
   @Override
   public String getBatchSize() {
-    return m_BatchSize;
+    if (m_BatchSize == null)
+      return BATCH_SIZE_DEFAULT;
+    else
+      return m_BatchSize;
   }
 
   /**
